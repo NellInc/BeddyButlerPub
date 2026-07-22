@@ -215,9 +215,40 @@ a.button-quiet:hover { background: rgba(255,255,255,.1); border-color: var(--lin
 .section-heading.centre { display:block; max-width:820px; margin-inline:auto; text-align:center; }
 .section-heading.centre > p { max-width:700px; margin:20px auto 0; }
 .persona-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; }
-.persona-card { position:relative; padding:0 28px 30px; border:1px solid var(--line); border-radius:var(--radius-lg); overflow:hidden; background:rgba(13,27,51,.6); }
-.persona-art { height:390px; margin:0 -28px 24px; display:flex; justify-content:center; overflow:hidden; background:radial-gradient(circle at 50% 35%, rgba(121,190,239,.2), transparent 58%); }
-.persona-art img { width:auto; height:520px; margin-top:18px; object-fit:contain; filter:drop-shadow(0 18px 24px rgba(0,0,0,.25)); }
+.persona-card { position:relative; padding:0 28px 30px; border:1px solid var(--line); border-radius:var(--radius-lg); overflow:hidden; background:rgba(13,27,51,.6); transition:transform .45s cubic-bezier(.2,.8,.2,1), border-color .45s ease, box-shadow .45s ease; }
+.persona-card:hover { transform:translateY(-6px); border-color:rgba(170,216,255,.24); box-shadow:0 28px 70px rgba(0,0,0,.24); }
+.persona-art { position:relative; height:390px; margin:0 -28px 24px; display:flex; justify-content:center; overflow:hidden; background:radial-gradient(circle at 50% 35%, rgba(121,190,239,.2), transparent 58%); }
+.persona-art::after { content:""; position:absolute; inset:16% 18% 8%; border-radius:50%; background:radial-gradient(circle,rgba(136,205,255,.12),transparent 67%); opacity:.55; animation:persona-aura 5.8s ease-in-out infinite; pointer-events:none; }
+.persona-art img { position:relative; z-index:1; width:auto; height:520px; margin-top:18px; object-fit:contain; filter:drop-shadow(0 18px 24px rgba(0,0,0,.25)); backface-visibility:hidden; scale:1; transition:scale .45s cubic-bezier(.2,.8,.2,1), filter .45s ease; }
+.persona-card:hover .persona-art img { scale:1.025; filter:drop-shadow(0 24px 30px rgba(0,0,0,.32)); }
+.persona-card.shy .persona-art img { transform-origin:53% 93%; animation:shy-butler 7.2s cubic-bezier(.45,0,.35,1) infinite; }
+.persona-card.insistent .persona-art img { transform-origin:56% 94%; animation:insistent-butler 5.8s ease-in-out infinite; }
+.persona-card.zombie .persona-art img { transform-origin:61% 94%; animation:zombie-butler 6.4s cubic-bezier(.4,0,.25,1) infinite; }
+.persona-card.insistent .persona-art::after { background:radial-gradient(circle,rgba(193,169,240,.14),transparent 67%); animation-delay:-1.8s; }
+.persona-card.zombie .persona-art::after { background:radial-gradient(circle,rgba(164,216,135,.16),transparent 67%); animation-delay:-3.4s; }
+@keyframes persona-aura {
+  0%,100% { opacity:.38; transform:scale(.94); }
+  50% { opacity:.75; transform:scale(1.05); }
+}
+@keyframes shy-butler {
+  0%,68%,100% { transform:translate3d(0,0,0) rotate(-.35deg) scaleY(1); }
+  74% { transform:translate3d(0,-3px,0) rotate(.15deg) scaleY(1.008); }
+  82% { transform:translate3d(0,-9px,0) rotate(.8deg) scaleY(1.016); }
+  90% { transform:translate3d(0,-2px,0) rotate(-.15deg) scaleY(1.004); }
+}
+@keyframes insistent-butler {
+  0%,100% { transform:translate3d(-2px,1px,0) rotate(-.7deg); }
+  48% { transform:translate3d(3px,-7px,0) rotate(.75deg); }
+  58% { transform:translate3d(4px,-8px,0) rotate(.9deg); }
+}
+@keyframes zombie-butler {
+  0%,100% { transform:translate3d(-3px,1px,0) rotate(-1.1deg); }
+  18% { transform:translate3d(2px,-6px,0) rotate(.7deg); }
+  39% { transform:translate3d(-1px,-2px,0) rotate(-.35deg); }
+  55% { transform:translate3d(5px,-10px,0) rotate(1.25deg); }
+  72% { transform:translate3d(1px,-4px,0) rotate(.2deg); }
+  86% { transform:translate3d(-4px,-7px,0) rotate(-1.4deg); }
+}
 .persona-card.insistent .persona-art { background:radial-gradient(circle at 50% 35%, rgba(174,145,224,.21), transparent 58%); }
 .persona-card.zombie .persona-art { background:radial-gradient(circle at 50% 35%, rgba(140,191,118,.24), transparent 58%); }
 .persona-level { margin:0; color:var(--blue); font-size:10px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
