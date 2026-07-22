@@ -826,7 +826,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
 
         switch settings.nudgeDelivery {
         case .sound:
-            previewItem?.title = "Hear a \(settings.personality.title) Sample"
+            previewItem?.title = settings.personality.sampleLabel
         case .visual:
             previewItem?.title = "Preview Visual Badge"
         case .both:

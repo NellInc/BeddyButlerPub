@@ -17,6 +17,8 @@ enum ButlerPersonality: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 
     var assetName: String { "\(title)Icon" }
+    var rigAssetName: String { "\(title)Rig" }
+    var sampleLabel: String { "Hear \(self == .insistent ? "an" : "a") \(title) Sample" }
 
     var guidance: String {
         switch self {
