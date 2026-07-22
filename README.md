@@ -29,7 +29,7 @@ The current edition preserves the original artwork and all 91 source recordings 
 - A compact native Tonight panel on left click, a full command menu on right click, an adaptive system icon, and accessible SwiftUI preferences.
 - A system-native, edge-to-edge preferences window with adaptive Liquid Glass accents on macOS 26 and standard-material fallbacks on earlier supported releases.
 - A focused night appearance with Reduced Transparency and Reduced Motion adaptation.
-- Personality-specific 2D skeletal animation with independently rigged head, torso, hands, and Zombie brain motion.
+- Personality-specific character animation with expressive, distortion-free movement for Shy, Insistent, and Zombie.
 - A modern macOS application icon that retains the original sleepy butler character.
 - Privacy-preserving website and feedback commands that open the relevant page in the default browser. Mac App Store builds use Apple's update mechanism.
 - App Sandbox and hardened runtime configuration.
@@ -91,7 +91,7 @@ python3 Tools/validate_website.py
 | --- | --- |
 | `AppDelegate.swift` | Menu bar lifecycle, adaptive and badged icons, menu commands, and clock-change handling |
 | `PreferencesViewController.swift` | SwiftUI preferences hosted in AppKit |
-| `ButlerRigView.swift` | Native SpriteKit mesh rig, personality choreography, and Reduced Motion fallback |
+| `ButlerRigView.swift` | Native SpriteKit rigid-sprite choreography and Reduced Motion fallback |
 | `ButlerTimer.swift` | Calendar-safe bedtime windows, scheduling, mute behavior, progressive state |
 | `UserDefaultKeys.swift` | Typed settings, onboarding state, and migration from legacy preferences |
 | `AudioPlayer.swift` | Voice catalog and retained audio playback |
