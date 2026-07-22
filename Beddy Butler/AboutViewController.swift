@@ -28,7 +28,7 @@ enum ApplicationMetadata {
             .applicationVersion: versionDescription,
             .credits: NSAttributedString(
                 string:
-                    "A playful bedtime nudge from Nell Watson.\nRevived for modern macOS in 2026.\n\nCopyright © 2015-2026 Nell Watson Inc."
+                    "An original bedtime companion.\n\nDesigned and engineered by Nell Watson and David Garces.\n\nCopyright © 2015-2026 Nell Watson Inc."
             ),
         ]
     }
