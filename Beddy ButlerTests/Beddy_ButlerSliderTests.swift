@@ -63,6 +63,33 @@ final class BeddyButlerWallClockTests: XCTestCase {
         XCTAssertEqual(feedback.host, "github.com")
     }
 
+    func testPopoverIsClampedBelowTheNotchAndInsideScreenEdges() {
+        let screenFrame = NSRect(x: 0, y: 0, width: 1_728, height: 1_117)
+        let visibleFrame = NSRect(x: 0, y: 0, width: 1_728, height: 1_084)
+        let safeInsets = NSEdgeInsets(top: 32, left: 0, bottom: 0, right: 0)
+        let usableFrame = NotchSafePopoverPlacement.usableFrame(
+            screenFrame: screenFrame,
+            visibleFrame: visibleFrame,
+            safeAreaInsets: safeInsets
+        )
+
+        let clippedAtTopLeft = NSRect(x: -20, y: 900, width: 390, height: 200)
+        let adjustedTopLeft = NotchSafePopoverPlacement.clampedFrame(
+            clippedAtTopLeft,
+            inside: usableFrame
+        )
+        XCTAssertEqual(adjustedTopLeft.minX, 8)
+        XCTAssertEqual(adjustedTopLeft.maxY, 1_076)
+
+        let clippedAtBottomRight = NSRect(x: 1_500, y: -30, width: 390, height: 200)
+        let adjustedBottomRight = NotchSafePopoverPlacement.clampedFrame(
+            clippedAtBottomRight,
+            inside: usableFrame
+        )
+        XCTAssertEqual(adjustedBottomRight.maxX, 1_720)
+        XCTAssertEqual(adjustedBottomRight.minY, 8)
+    }
+
     @MainActor
     func testMenuBarIconIsAVisibleTemplateSymbol() throws {
         let icon = try XCTUnwrap(MenuBarIcon.make())

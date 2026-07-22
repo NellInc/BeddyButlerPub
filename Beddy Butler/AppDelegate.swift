@@ -22,6 +22,48 @@ enum MenuBarIcon {
     }
 }
 
+enum NotchSafePopoverPlacement {
+    static let screenMargin: CGFloat = 8
+
+    static func usableFrame(
+        screenFrame: NSRect,
+        visibleFrame: NSRect,
+        safeAreaInsets: NSEdgeInsets,
+        margin: CGFloat = screenMargin
+    ) -> NSRect {
+        let safeAreaFrame = NSRect(
+            x: screenFrame.minX + safeAreaInsets.left,
+            y: screenFrame.minY + safeAreaInsets.bottom,
+            width: max(0, screenFrame.width - safeAreaInsets.left - safeAreaInsets.right),
+            height: max(0, screenFrame.height - safeAreaInsets.top - safeAreaInsets.bottom)
+        )
+        let unobscuredFrame = visibleFrame.intersection(safeAreaFrame)
+        guard !unobscuredFrame.isNull, unobscuredFrame.width > margin * 2,
+            unobscuredFrame.height > margin * 2
+        else {
+            return visibleFrame
+        }
+        return unobscuredFrame.insetBy(dx: margin, dy: margin)
+    }
+
+    static func clampedFrame(_ frame: NSRect, inside usableFrame: NSRect) -> NSRect {
+        guard frame.width <= usableFrame.width, frame.height <= usableFrame.height else {
+            return frame
+        }
+
+        var result = frame
+        result.origin.x = min(
+            max(result.origin.x, usableFrame.minX),
+            usableFrame.maxX - result.width
+        )
+        result.origin.y = min(
+            max(result.origin.y, usableFrame.minY),
+            usableFrame.maxY - result.height
+        )
+        return result
+    }
+}
+
 enum ExternalLinks {
     static let website = URL(string: "https://www.beddybutler.com/")
     static let feedback = URL(string: "https://github.com/NellInc/beddybutlerpub/issues/new/choose")
@@ -526,7 +568,7 @@ struct TonightPopoverView: View {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopoverDelegate {
     private lazy var settings: AppSettings = {
         let environment = ProcessInfo.processInfo.environment
         if let suiteName = environment["BEDDY_BUTLER_DEFAULTS_SUITE"],
@@ -554,6 +596,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let popover = NSPopover()
         popover.behavior = .transient
         popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        popover.delegate = self
         popover.contentViewController = NSHostingController(
             rootView: TonightPopoverView(
                 settings: settings,
@@ -689,8 +732,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             statusPopover.performClose(nil)
         } else {
             refreshMenuState()
-            statusPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            showStatusPopover(relativeTo: button)
         }
+    }
+
+    func popoverDidShow(_ notification: Notification) {
+        positionStatusPopoverClearOfScreenObstructions()
+    }
+
+    private func showStatusPopover(relativeTo button: NSStatusBarButton) {
+        statusPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        positionStatusPopoverClearOfScreenObstructions()
+    }
+
+    private func positionStatusPopoverClearOfScreenObstructions() {
+        guard statusPopover.isShown,
+            let popoverWindow = statusPopover.contentViewController?.view.window,
+            let screen = statusItem?.button?.window?.screen ?? popoverWindow.screen ?? NSScreen.main
+        else {
+            return
+        }
+
+        let usableFrame = NotchSafePopoverPlacement.usableFrame(
+            screenFrame: screen.frame,
+            visibleFrame: screen.visibleFrame,
+            safeAreaInsets: screen.safeAreaInsets
+        )
+        let adjustedFrame = NotchSafePopoverPlacement.clampedFrame(
+            popoverWindow.frame,
+            inside: usableFrame
+        )
+        guard adjustedFrame != popoverWindow.frame else { return }
+        popoverWindow.setFrame(adjustedFrame, display: true, animate: false)
     }
 
     private func makeItem(
@@ -938,7 +1011,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let button = statusItem?.button else {
                 throw CocoaError(.featureUnsupported)
             }
-            statusPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            showStatusPopover(relativeTo: button)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
                 guard let self, let popoverView = statusPopover.contentViewController?.view else {
                     return
