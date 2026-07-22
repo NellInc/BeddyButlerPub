@@ -1,78 +1,107 @@
+import SpriteKit
 import XCTest
 
 @testable import Beddy_Butler
 
 final class Beddy_ButlerRigTests: XCTestCase {
-    func testRigProducesAClosedFiniteMeshForEveryPersonality() {
-        let expectedVertexCount = (ButlerRigMotion.columns + 1) * (ButlerRigMotion.rows + 1)
-        XCTAssertEqual(ButlerRigMotion.sourcePositions.count, expectedVertexCount)
-
+    func testRigidChoreographyIsClosedFiniteAndVisuallySafe() {
         for personality in ButlerPersonality.allCases {
-            let warps = ButlerRigMotion.warps(for: personality)
-            XCTAssertEqual(warps.count, ButlerRigMotion.sampleCount + 1)
-            XCTAssertTrue(warps.allSatisfy { $0.vertexCount == expectedVertexCount })
+            for sample in 0...120 {
+                let phase = Float(sample) / 120
+                let pose = ButlerRigidMotion.pose(for: personality, phase: phase)
 
-            for sample in 0...ButlerRigMotion.sampleCount {
-                let phase = Float(sample) / Float(ButlerRigMotion.sampleCount)
-                let positions = ButlerRigMotion.destinationPositions(
-                    for: personality,
-                    phase: phase
-                )
-                XCTAssertEqual(positions.count, expectedVertexCount)
-                XCTAssertTrue(
-                    positions.allSatisfy {
-                        $0.x.isFinite && $0.y.isFinite
-                            && (-0.12...1.12).contains($0.x)
-                            && (-0.12...1.12).contains($0.y)
-                    },
-                    "\(personality.title) produced an invalid mesh at phase \(phase)"
-                )
+                XCTAssertTrue(pose.translation.x.isFinite)
+                XCTAssertTrue(pose.translation.y.isFinite)
+                XCTAssertTrue(pose.rotation.isFinite)
+                XCTAssertTrue(pose.scale.isFinite)
+                XCTAssertTrue((-0.06...0.06).contains(pose.translation.x))
+                XCTAssertTrue((-0.06...0.06).contains(pose.translation.y))
+                XCTAssertLessThan(abs(pose.rotation), Float.pi / 18)
+                XCTAssertTrue((0.94...1.06).contains(pose.scale))
             }
 
-            let start = ButlerRigMotion.destinationPositions(for: personality, phase: 0)
-            let end = ButlerRigMotion.destinationPositions(for: personality, phase: 1)
-            for (first, last) in zip(start, end) {
-                XCTAssertEqual(first.x, last.x, accuracy: 0.000_01)
-                XCTAssertEqual(first.y, last.y, accuracy: 0.000_01)
-            }
+            let start = ButlerRigidMotion.pose(for: personality, phase: 0)
+            let end = ButlerRigidMotion.pose(for: personality, phase: 1)
+            XCTAssertEqual(start.translation.x, end.translation.x, accuracy: 0.000_01)
+            XCTAssertEqual(start.translation.y, end.translation.y, accuracy: 0.000_01)
+            XCTAssertEqual(start.rotation, end.rotation, accuracy: 0.000_01)
+            XCTAssertEqual(start.scale, end.scale, accuracy: 0.000_01)
         }
     }
 
-    func testEachPersonalityHasMeaningfulLocalizedDeformation() {
+    func testEveryPersonalityNowHasClearlyVisibleMovement() {
         for personality in ButlerPersonality.allCases {
-            let maximumMovement =
-                (0...ButlerRigMotion.sampleCount)
-                .map { sample -> Float in
-                    let phase = Float(sample) / Float(ButlerRigMotion.sampleCount)
-                    let positions = ButlerRigMotion.destinationPositions(
-                        for: personality,
-                        phase: phase
+            let poses = (0...120).map { sample in
+                ButlerRigidMotion.pose(
+                    for: personality,
+                    phase: Float(sample) / 120
+                )
+            }
+            let maximumTranslation =
+                poses.map { pose in
+                    sqrt(
+                        pose.translation.x * pose.translation.x
+                            + pose.translation.y * pose.translation.y
                     )
-                    return zip(ButlerRigMotion.sourcePositions, positions)
-                        .map { source, destination in
-                            let offset = destination - source
-                            return sqrt(offset.x * offset.x + offset.y * offset.y)
-                        }
-                        .max() ?? 0
-                }
-                .max() ?? 0
+                }.max() ?? 0
+            let maximumRotation = poses.map { abs($0.rotation) }.max() ?? 0
+            let maximumScaleChange = poses.map { abs($0.scale - 1) }.max() ?? 0
 
-            XCTAssertGreaterThan(
-                maximumMovement,
-                0.012,
-                "\(personality.title) should visibly articulate at least one rigged region"
-            )
+            XCTAssertGreaterThan(maximumTranslation, 0.014, personality.title)
+            XCTAssertGreaterThan(maximumRotation, 0.03, personality.title)
+            XCTAssertGreaterThan(maximumScaleChange, 0.006, personality.title)
         }
+    }
+
+    func testPersonalitiesHaveDistinctChoreography() {
+        let phases: [Float] = [0.17, 0.43, 0.68, 0.89]
+        let shy = phases.map { ButlerRigidMotion.pose(for: .shy, phase: $0) }
+        let insistent = phases.map { ButlerRigidMotion.pose(for: .insistent, phase: $0) }
+        let zombie = phases.map { ButlerRigidMotion.pose(for: .zombie, phase: $0) }
+
+        XCTAssertNotEqual(shy, insistent)
+        XCTAssertNotEqual(insistent, zombie)
+        XCTAssertNotEqual(shy, zombie)
     }
 
     func testZeroIntensityIsTheReduceMotionIdentityPose() {
         for personality in ButlerPersonality.allCases {
-            let positions = ButlerRigMotion.destinationPositions(
+            let pose = ButlerRigidMotion.pose(
                 for: personality,
                 phase: 0.37,
                 intensity: 0
             )
-            XCTAssertEqual(positions, ButlerRigMotion.sourcePositions)
+            XCTAssertEqual(pose, .identity)
+        }
+    }
+
+    @MainActor
+    func testRendererKeepsEveryCharacterAsAnUndeformedSprite() throws {
+        let scene = ButlerMotionScene()
+        scene.size = CGSize(width: 300, height: 400)
+
+        for personality in ButlerPersonality.allCases {
+            scene.configure(
+                personality: personality,
+                motionEnabled: true,
+                contentMode: .fit,
+                intensity: 1
+            )
+            scene.applyPose(at: ButlerRigidMotion.cycleDuration(for: personality) * 0.43)
+
+            let sprite = try XCTUnwrap(
+                scene.children.compactMap { $0 as? SKSpriteNode }.last,
+                "Missing sprite for \(personality.title)"
+            )
+            XCTAssertNil(sprite.warpGeometry)
+            XCTAssertEqual(sprite.xScale, sprite.yScale, accuracy: 0.000_01)
+            let texture = try XCTUnwrap(sprite.texture)
+            XCTAssertEqual(texture.filteringMode, .linear)
+            XCTAssertLessThanOrEqual(
+                texture.cgImage().height,
+                ButlerMotionScene.maximumTextureHeight,
+                "\(personality.title) should be prefiltered before SpriteKit minifies it"
+            )
         }
     }
 }
