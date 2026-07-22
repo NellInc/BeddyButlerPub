@@ -26,6 +26,14 @@ func attribute(_ name: CFString, of element: AXUIElement) -> AnyObject? {
     return value
 }
 
+func axValueAttribute(_ name: CFString, of element: AXUIElement) -> AXValue? {
+    guard let value = attribute(name, of: element), CFGetTypeID(value) == AXValueGetTypeID()
+    else {
+        return nil
+    }
+    return unsafeBitCast(value, to: AXValue.self)
+}
+
 func descendants(of root: AXUIElement, limit: Int = 2_000) -> [AXUIElement] {
     var result: [AXUIElement] = []
     var queue = [root]
@@ -122,10 +130,56 @@ guard
             && (attribute(kAXDescriptionAttribute as CFString, of: $0) as? String)
                 == "Beddy Butler"
     }),
-    AXUIElementPerformAction(menuBarItem, kAXPressAction as CFString) == .success
+    let positionValue = axValueAttribute(kAXPositionAttribute as CFString, of: menuBarItem),
+    let sizeValue = axValueAttribute(kAXSizeAttribute as CFString, of: menuBarItem)
 else {
-    fputs("The Beddy Butler menu-bar item could not be opened through accessibility.\n", stderr)
+    fputs("The Beddy Butler menu-bar item could not be located for a physical click.\n", stderr)
     exit(1)
+}
+
+var menuBarPosition = CGPoint.zero
+var menuBarSize = CGSize.zero
+guard AXValueGetValue(positionValue, .cgPoint, &menuBarPosition),
+    AXValueGetValue(sizeValue, .cgSize, &menuBarSize)
+else {
+    fputs("The Beddy Butler menu-bar item did not expose clickable bounds.\n", stderr)
+    exit(1)
+}
+
+let originalPointerPosition = CGEvent(source: nil)?.location
+let menuBarCentre = CGPoint(
+    x: menuBarPosition.x + menuBarSize.width / 2,
+    y: menuBarPosition.y + menuBarSize.height / 2
+)
+guard
+    let mouseDown = CGEvent(
+        mouseEventSource: nil,
+        mouseType: .leftMouseDown,
+        mouseCursorPosition: menuBarCentre,
+        mouseButton: .left
+    ),
+    let mouseUp = CGEvent(
+        mouseEventSource: nil,
+        mouseType: .leftMouseUp,
+        mouseCursorPosition: menuBarCentre,
+        mouseButton: .left
+    )
+else {
+    fputs("The physical menu-bar click events could not be created.\n", stderr)
+    exit(1)
+}
+mouseDown.post(tap: .cghidEventTap)
+Thread.sleep(forTimeInterval: 0.06)
+mouseUp.post(tap: .cghidEventTap)
+if let originalPointerPosition,
+    let restorePointer = CGEvent(
+        mouseEventSource: nil,
+        mouseType: .mouseMoved,
+        mouseCursorPosition: originalPointerPosition,
+        mouseButton: .left
+    )
+{
+    restorePointer.post(tap: .cghidEventTap)
 }
 
 let popoverDeadline = Date().addingTimeInterval(4)
