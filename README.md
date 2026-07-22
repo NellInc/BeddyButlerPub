@@ -1,8 +1,8 @@
 # Beddy Butler
 
-Beddy Butler is a playful macOS menu bar companion that nudges you toward bed with increasingly persuasive voice reminders.
+Beddy Butler is an original macOS menu bar companion, first released in 2016 and now rebuilt in Swift 6. It nudges you toward bed with increasingly persuasive voice reminders, visual reminders, or both. It is completely free.
 
-This revision revives the 2016 app as a native Swift 6 project. It preserves the original artwork and all 91 source recordings while replacing the obsolete storyboard, custom double slider, timer arithmetic, login item API, mutable build-number script, and fragile tests.
+The current edition preserves the original artwork and all 91 source recordings while replacing the obsolete storyboard, custom double slider, timer arithmetic, login item API, mutable build-number script, and fragile tests.
 
 ## Features
 
@@ -107,9 +107,13 @@ Two local runtime probes supplement XCTest. `Tools/runtime_smoke_test.swift` con
 
 The source recordings are stored unchanged in `Audio Sources/Originals`. `Tools/prepare_audio.py` reproducibly creates the release assets, while its `--check` mode verifies inventory, hashes, decoding, and clip duration without modifying files. `Audio Sources/PROCESSING_REPORT.json` records every source hash, splice, gain adjustment, output duration, and measured level.
 
-## Lineage
+## Project history
 
-The revival is based on `NellInc/beddybutlerpub`, with useful behavior selectively ported from `NellInc/beddybutler`. The repositories do not share Git ancestry, so a direct history merge would be unreliable. See `REVIVAL_NOTES.md`, `PERFECTION_PLAN.md`, and the workspace-level `REPOSITORY_MAP.md` for the full collation and product-quality plan.
+Beddy Butler is an original work first created in 2016. The older Beddy Butler repositories preserve earlier iterations and experiments within the same project. See `REVIVAL_NOTES.md`, `PERFECTION_PLAN.md`, and the workspace-level `REPOSITORY_MAP.md` for the full collation and product-quality plan.
+
+## Credits
+
+Beddy Butler was designed and engineered by Nell Watson and David Garces.
 
 ## License
 

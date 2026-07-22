@@ -1,3 +1,4 @@
+import AppKit
 import ServiceManagement
 import XCTest
 
@@ -27,6 +28,18 @@ private struct TestLoginError: LocalizedError {
 }
 
 final class BeddyButlerLoginTests: XCTestCase {
+    func testAboutPanelCreditsBothDesignersAndEngineers() throws {
+        let credits = try XCTUnwrap(
+            ApplicationMetadata.aboutOptions[.credits] as? NSAttributedString
+        )
+
+        XCTAssertTrue(
+            credits.string.contains(
+                "Designed and engineered by Nell Watson and David Garces."
+            )
+        )
+    }
+
     func testSystemStatusesMapToPresentationState() {
         XCTAssertEqual(LoginItemState(status: .notRegistered), .disabled)
         XCTAssertEqual(LoginItemState(status: .enabled), .enabled)
