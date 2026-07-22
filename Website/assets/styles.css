@@ -112,7 +112,6 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(54px, 6.2vw, 88px); line-heig
 .button { min-height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 0 21px; border: 1px solid transparent; border-radius: 14px; font-size: 15px; font-weight: 700; text-decoration: none; }
 .button svg { width: 20px; height: 20px; fill: currentColor; }
 .button-primary { color: #071225; background: linear-gradient(180deg, #fff, #d8eaff); box-shadow: 0 10px 30px rgba(73, 150, 225, .25); }
-.button-disabled { cursor: default; opacity: .92; }
 .button-quiet { color: #e9f3ff; border-color: var(--line); background: rgba(255,255,255,.055); backdrop-filter: blur(16px); transition: background .2s ease, border-color .2s ease; }
 a.button-quiet:hover { background: rgba(255,255,255,.1); border-color: var(--line-strong); }
 .trust-row { display: flex; flex-wrap: wrap; gap: 22px; margin: 29px 0 0; padding: 0; list-style: none; color: var(--faint); font-size: 13px; font-weight: 600; }

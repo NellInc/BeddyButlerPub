@@ -28,7 +28,7 @@ This revision revives the 2016 app as a native Swift 6 project. It preserves the
 - Modern launch-at-login support through `SMAppService`.
 - A compact native Tonight panel on left click, a full command menu on right click, an adaptive system icon, and accessible SwiftUI preferences.
 - A system-native, edge-to-edge preferences window with adaptive Liquid Glass accents on macOS 26 and standard-material fallbacks on earlier supported releases.
-- Automatic light and dark appearance, Reduced Transparency, and Reduced Motion adaptation.
+- A focused night appearance with Reduced Transparency and Reduced Motion adaptation.
 - A modern macOS application icon that retains the original sleepy butler character.
 - Privacy-preserving website and feedback commands that open the relevant page in the default browser. Mac App Store builds use Apple's update mechanism.
 - App Sandbox and hardened runtime configuration.
@@ -60,7 +60,7 @@ python3 Tools/prepare_audio.py --check
 Create a signed local beta with the installed Developer ID identity:
 
 ```sh
-Tools/release.sh 2.0 608 --local
+Tools/release.sh 2.0 609 --local
 ```
 
 For a notarized release, first store a `beddy-butler-notary` notarytool Keychain profile, then omit `--local`. The release script notarizes and staples the app, builds and notarizes a drag-to-Applications disk image, creates a ZIP, and writes SHA-256 checksums. The rights holder has confirmed publication and asset rights.
@@ -68,8 +68,8 @@ For a notarized release, first store a `beddy-butler-notary` notarytool Keychain
 Prepare a Mac App Store build:
 
 ```sh
-Tools/app_store_release.sh --preflight 2.0 608
-Tools/app_store_release.sh --upload 2.0 608
+Tools/app_store_release.sh --preflight 2.0 609
+Tools/app_store_release.sh --upload 2.0 609
 ```
 
 The upload command requires an App Store Connect app record, accepted agreements, and working Apple distribution signing. Product copy, review notes, privacy answers, and 2880 by 1800 screenshots live in `AppStore`.
@@ -97,6 +97,7 @@ python3 Tools/validate_website.py
 | `AboutViewController.swift` | About panel metadata |
 | `Website` | BeddyButler.com product, support, and privacy pages |
 | `AppStore` | Submission copy, review notes, privacy answers, and screenshots |
+| `DESIGN_SYSTEM.md` | Figma source, shared visual tokens, 4K masters, and native capture workflow |
 
 The test target covers scheduling before, during, and after a window; active-night and arbitrary alternate-night selection; rotating cycles in both directions around their anchor; one-night overrides; migration from the original Friday and Saturday option; cross-midnight behavior; multiple time zones; the spring daylight-saving gap; progressive escalation; sound, visual, and combined delivery; persistent visual counts; nonrepeating audio selection; exact snooze and bedtime boundaries; first-launch and upgrade migration; volume persistence; login items; and every bundled voice set.
 

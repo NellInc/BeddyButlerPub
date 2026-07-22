@@ -216,120 +216,312 @@ struct TonightPopoverView: View {
     let quit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 11) {
-                Image(systemName: scheduler.visualNudgePending ? "bell.badge.fill" : "moon.zzz.fill")
+        ZStack {
+            BeddyBackdrop()
+
+            VStack(alignment: .leading, spacing: 18) {
+                panelHeader
+                nextNudgeCard
+                scheduleSummary
+
+                if scheduler.visualNudgePending {
+                    Button {
+                        acknowledge()
+                    } label: {
+                        Label("Acknowledge Badge", systemImage: "checkmark.circle.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(BeddyPrimaryButtonStyle(glow: BeddyPalette.blue))
+                    .accessibilityIdentifier("popover.acknowledge")
+                }
+
+                actionGrid
+                progressionFooter
+                utilityFooter
+            }
+            .padding(24)
+        }
+        .frame(width: 390)
+        .foregroundStyle(BeddyPalette.ink)
+        .tint(BeddyPalette.blue)
+        .preferredColorScheme(.dark)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Beddy Butler Tonight panel")
+    }
+
+    private var panelHeader: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("TONIGHT")
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(1.6)
+                    .foregroundStyle(BeddyPalette.blue)
+                Text(panelTitle)
+                    .font(.system(size: 21, weight: .bold))
+                    .tracking(-0.4)
+                    .foregroundStyle(BeddyPalette.ink)
+            }
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 6, height: 6)
+                    .shadow(color: statusColor, radius: 4)
+                Text(statusTitle)
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .foregroundStyle(statusColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(statusColor.opacity(0.12), in: Capsule())
+            .accessibilityLabel("Status: \(statusTitle)")
+        }
+    }
+
+    private var nextNudgeCard: some View {
+        HStack(spacing: 15) {
+            ZStack {
+                LinearGradient(
+                    colors: [BeddyPalette.blueBright, Color(red: 100 / 255, green: 143 / 255, blue: 228 / 255)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                Image(systemName: nextCardSymbol)
                     .font(.system(size: 25, weight: .medium))
-                    .foregroundStyle(scheduler.visualNudgePending ? .orange : .indigo)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Tonight")
-                        .font(.headline)
-                    Text(statusText)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
+                    .foregroundStyle(Color(red: 16 / 255, green: 37 / 255, blue: 66 / 255))
+            }
+            .frame(width: 52, height: 52)
+            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .shadow(color: BeddyPalette.blue.opacity(0.27), radius: 13, y: 7)
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(nextCardEyebrow)
+                    .font(.system(size: 8, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundStyle(Color(red: 145 / 255, green: 170 / 255, blue: 200 / 255))
+                Text(nextCardValue)
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .tracking(-0.7)
+                    .foregroundStyle(BeddyPalette.ink)
+                Text(nextCardDetail)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(BeddyPalette.muted)
             }
 
-            HStack(spacing: 8) {
-                Label(settings.nudgeDelivery.title, systemImage: deliverySymbol)
-                Text("·")
-                    .accessibilityHidden(true)
-                Text(settings.personality.title)
-                Spacer()
-                Text(settings.progressiveMode ? "Progressive" : "Steady")
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .padding(17)
+        .background {
+            LinearGradient(
+                colors: [BeddyPalette.blue.opacity(0.18), Color.white.opacity(0.04)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
 
-            Divider()
+    private var scheduleSummary: some View {
+        HStack(spacing: 14) {
+            Text(scheduleName)
+                .foregroundStyle(BeddyPalette.muted)
+            Spacer(minLength: 8)
+            Text(scheduleWindowText)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color(red: 219 / 255, green: 232 / 255, blue: 248 / 255))
+                .monospacedDigit()
+        }
+        .font(.system(size: 11))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(scheduleName), \(scheduleWindowText)")
+    }
 
-            if scheduler.visualNudgePending {
-                Button {
-                    acknowledge()
-                } label: {
-                    Label("Acknowledge Badge", systemImage: "checkmark.circle.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("popover.acknowledge")
-            }
-
-            HStack(spacing: 8) {
+    private var actionGrid: some View {
+        VStack(spacing: 9) {
+            HStack(spacing: 9) {
                 Button {
                     preview()
                 } label: {
-                    Label("Preview", systemImage: "play.fill")
+                    Label("Hear sample", systemImage: "play.fill")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(BeddySecondaryButtonStyle())
                 .accessibilityIdentifier("popover.preview")
 
                 Button {
                     snooze()
                 } label: {
-                    Label("Snooze", systemImage: "timer")
+                    Label("Snooze 30 min", systemImage: "timer")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(BeddySecondaryButtonStyle())
                 .disabled(!scheduler.canSnooze)
                 .accessibilityIdentifier("popover.snooze")
-
-                Button {
-                    togglePause()
-                } label: {
-                    Label(
-                        settings.isMuted() ? "Resume" : "Pause",
-                        systemImage: settings.isMuted() ? "play.circle" : "pause.circle"
-                    )
-                }
-                .accessibilityIdentifier("popover.pause")
             }
-            .buttonStyle(.bordered)
 
-            Divider()
-
-            HStack {
-                Button("Preferences…") {
-                    openPreferences()
-                }
-                .keyboardShortcut(",")
-                .accessibilityIdentifier("popover.preferences")
-                Spacer()
-                Button("Quit") {
-                    quit()
-                }
-                .accessibilityIdentifier("popover.quit")
+            Button {
+                togglePause()
+            } label: {
+                Label(
+                    settings.isMuted() ? "Resume nudges" : "Pause tonight",
+                    systemImage: settings.isMuted() ? "play.circle.fill" : "pause.circle"
+                )
+                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.plain)
-            .font(.callout)
+            .buttonStyle(BeddySecondaryButtonStyle())
+            .accessibilityIdentifier("popover.pause")
         }
-        .padding(16)
-        .frame(width: 340)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Beddy Butler Tonight panel")
     }
 
-    private var statusText: String {
+    private var progressionFooter: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(settings.progressiveMode ? "Progressive mode" : "Steady mode")
+                .foregroundStyle(BeddyPalette.faint)
+            Spacer(minLength: 8)
+            Text(settings.progressiveMode ? "Shy  →  Insistent  →  Zombie" : settings.personality.title)
+                .fontWeight(.semibold)
+                .foregroundStyle(BeddyPalette.blue)
+        }
+        .font(.system(size: 10))
+        .padding(.top, 16)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.09))
+                .frame(height: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var utilityFooter: some View {
+        HStack {
+            Button("Preferences…") {
+                openPreferences()
+            }
+            .keyboardShortcut(",")
+            .accessibilityIdentifier("popover.preferences")
+
+            Spacer()
+
+            Button("Quit") {
+                quit()
+            }
+            .accessibilityIdentifier("popover.quit")
+        }
+        .buttonStyle(.plain)
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(BeddyPalette.faint)
+    }
+
+    private var panelTitle: String {
+        if scheduler.visualNudgePending {
+            return "A nudge is waiting"
+        }
+        if settings.isMuted() {
+            return "Rest easy for now"
+        }
+        return scheduler.nextNudge == nil ? "Evening at ease" : "Wind down gently"
+    }
+
+    private var statusTitle: String {
+        if scheduler.visualNudgePending { return "Waiting" }
+        if settings.isMuted() { return "Paused" }
+        return scheduler.nextNudge == nil ? "At ease" : "Active"
+    }
+
+    private var statusColor: Color {
+        if scheduler.visualNudgePending || settings.isMuted() { return BeddyPalette.warm }
+        return scheduler.nextNudge == nil ? BeddyPalette.faint : BeddyPalette.success
+    }
+
+    private var nextCardEyebrow: String {
+        if scheduler.visualNudgePending { return "NUDGE WAITING" }
+        if settings.isMuted() { return "PAUSED UNTIL" }
+        return "NEXT NUDGE"
+    }
+
+    private var nextCardValue: String {
         if scheduler.visualNudgePending {
             return scheduler.pendingVisualNudgeCount == 1
-                ? "One visual bedtime nudge is waiting."
-                : "\(scheduler.pendingVisualNudgeCount) visual bedtime nudges are waiting."
+                ? "Ready"
+                : "\(scheduler.pendingVisualNudgeCount) waiting"
         }
         if let mutedUntil = settings.mutedUntil, settings.isMuted() {
-            return "Paused until \(LocalizedScheduleText.time(mutedUntil))."
+            return LocalizedScheduleText.time(mutedUntil)
         }
         if let nextNudge = scheduler.nextNudge {
-            return
-                "Next \(scheduler.nextPersonality.title.lowercased()) nudge at \(LocalizedScheduleText.time(nextNudge))."
+            return LocalizedScheduleText.time(nextNudge)
         }
-        return "No nudge is currently scheduled."
+        return "No plans"
     }
 
-    private var deliverySymbol: String {
-        switch settings.nudgeDelivery {
-        case .sound: "speaker.wave.2.fill"
-        case .visual: "bell.badge.fill"
-        case .both: "speaker.wave.2.bubble.fill"
+    private var nextCardDetail: String {
+        if scheduler.visualNudgePending {
+            return "A persistent badge is waiting for you"
         }
+        if settings.isMuted() {
+            return "Tonight’s reminders are taking a break"
+        }
+        return "\(scheduler.nextPersonality.title) Butler · \(deliveryTitle)"
+    }
+
+    private var nextCardSymbol: String {
+        if scheduler.visualNudgePending { return "bell.badge.fill" }
+        if settings.isMuted() { return "pause.fill" }
+        return "moon.zzz.fill"
+    }
+
+    private var deliveryTitle: String {
+        switch settings.nudgeDelivery {
+        case .sound: "Sound"
+        case .visual: "Badge"
+        case .both: "Sound + badge"
+        }
+    }
+
+    private var scheduleName: String {
+        settings.tonightOverrideIsActive() ? "Tonight’s adjustment" : settings.primaryScheduleName
+    }
+
+    private var scheduleWindowText: String {
+        let calendar = Calendar.autoupdatingCurrent
+        let schedule = WeeklyBedtimeSchedule(
+            startSeconds: settings.startSeconds,
+            bedSeconds: settings.bedSeconds,
+            activeWeekdays: settings.activeWeekdays,
+            alternateScheduleEnabled: settings.alternateScheduleEnabled,
+            alternateWeekdays: settings.alternateScheduleWeekdays,
+            alternateStartSeconds: settings.alternateStartSeconds,
+            alternateBedSeconds: settings.alternateBedSeconds,
+            alternatePattern: settings.alternateSchedulePattern,
+            rotationAnchorDate: settings.rotationAnchorDate,
+            rotationPrimaryDays: settings.rotationPrimaryDays,
+            rotationAlternateDays: settings.rotationAlternateDays,
+            oneNightOverride: settings.tonightOverrideDate.map {
+                OneNightScheduleOverride(
+                    anchorDate: $0,
+                    startSeconds: settings.tonightOverrideStartSeconds,
+                    bedSeconds: settings.tonightOverrideBedSeconds
+                )
+            }
+        )
+        guard
+            let window = ScheduleCalculator(calendar: calendar).window(
+                containingOrAfter: Date(),
+                schedule: schedule
+            )
+        else {
+            return "No active nights"
+        }
+        return "\(LocalizedScheduleText.time(window.start))  →  \(LocalizedScheduleText.time(window.end))"
     }
 }
 
@@ -397,6 +589,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         {
             DispatchQueue.main.async { [weak self] in
                 self?.showPreferences(nil)
+            }
+        }
+
+        if let outputDirectory = ProcessInfo.processInfo.environment["BEDDY_BUTLER_CAPTURE_UI_DIR"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                self?.captureUI(to: URL(fileURLWithPath: outputDirectory, isDirectory: true))
             }
         }
     }
@@ -721,5 +919,92 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 .priority: NSNumber(value: NSAccessibilityPriorityLevel.medium.rawValue),
             ]
         )
+    }
+
+    private func captureUI(to directory: URL) {
+        do {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true
+            )
+            guard let preferencesWindow = preferencesWindowController.window else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+            try writeSnapshot(
+                of: preferencesWindow,
+                to: directory.appendingPathComponent("preferences.png")
+            )
+
+            guard let button = statusItem?.button else {
+                throw CocoaError(.featureUnsupported)
+            }
+            statusPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                guard let self, let popoverView = statusPopover.contentViewController?.view else {
+                    return
+                }
+                do {
+                    try writeSnapshot(
+                        of: popoverView,
+                        to: directory.appendingPathComponent("tonight-popover.png")
+                    )
+                    print("Captured native UI to \(directory.path)")
+                } catch {
+                    fputs("Beddy Butler UI capture failed: \(error)\n", stderr)
+                }
+            }
+        } catch {
+            fputs("Beddy Butler UI capture failed: \(error)\n", stderr)
+        }
+    }
+
+    private func writeSnapshot(of view: NSView, to destination: URL) throws {
+        view.layoutSubtreeIfNeeded()
+        view.displayIfNeeded()
+        view.window?.displayIfNeeded()
+        let scale = view.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        let bounds = view.bounds
+        guard bounds.width > 0, bounds.height > 0,
+            let bitmap = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: Int((bounds.width * scale).rounded()),
+                pixelsHigh: Int((bounds.height * scale).rounded()),
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: 0,
+                bitsPerPixel: 0
+            )
+        else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        bitmap.size = bounds.size
+        view.cacheDisplay(in: bounds, to: bitmap)
+        guard let pngData = bitmap.representation(using: .png, properties: [:]) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        try pngData.write(to: destination, options: .atomic)
+    }
+
+    private func writeSnapshot(of window: NSWindow, to destination: URL) throws {
+        window.displayIfNeeded()
+        guard
+            let image = CGWindowListCreateImage(
+                .null,
+                .optionIncludingWindow,
+                CGWindowID(window.windowNumber),
+                [.boundsIgnoreFraming, .bestResolution]
+            )
+        else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let bitmap = NSBitmapImageRep(cgImage: image)
+        guard let pngData = bitmap.representation(using: .png, properties: [:]) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        try pngData.write(to: destination, options: .atomic)
     }
 }
