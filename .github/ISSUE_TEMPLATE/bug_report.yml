@@ -1,0 +1,41 @@
+name: Bug report
+description: Report a problem with scheduling, audio, startup, or the interface.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve Beddy Butler. Please omit private bedtime details you do not want to share publicly.
+  - type: input
+    id: version
+    attributes:
+      label: Beddy Butler version
+      placeholder: 2.0 (1)
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: macOS 26.0
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Include the selected personality and whether the bedtime window crosses midnight when relevant.
+    validations:
+      required: true

@@ -1,85 +1,82 @@
-//
-//  Beddy_ButlerAudioTests.swift
-//  Beddy Butler
-//
-//  Created by David Garces on 18/08/2015.
-//  Copyright (c) 2015 David Garces. All rights reserved.
-//
-
+import AVFoundation
+import Foundation
 import XCTest
+
 @testable import Beddy_Butler
 
-class Beddy_ButlerAudioTests: XCTestCase {
-    
-    var player: AudioPlayer = AudioPlayer()
-    var audioFile: AudioPlayer.AudioFiles?
-    
-    override func setUp() {
-        audioFile = nil
-    }
-    
-    override func tearDown() {
-    }
-    
-    
-    func testPlayerInitialises() {
-        XCTAssertNotNil(player, "test player initialises")
-    }
-    
-    func testInsistentAudioFileName() {
-        audioFile = AudioPlayer.AudioFiles.Insistent
-        XCTAssertEqual(audioFile!.description(), "Insistent", "test insistent audio file name")
-    }
-    
-    func testShyAudioFileName() {
-        audioFile = AudioPlayer.AudioFiles.Shy
-        XCTAssertEqual(audioFile!.description(), "Shy", "test shy audio file name")
-    }
-    
-    func testZombieAudioFileName() {
-        audioFile = AudioPlayer.AudioFiles.Zombie
-        XCTAssertEqual(audioFile!.description(), "Zombie", "test zombie audio file name")
-    }
-    
-    func testInsistentAudioFileExistsandPlays() {
-        player.playFile(file: AudioPlayer.AudioFiles.Insistent)
-        // In Swift 2.0 you will be able to throw an error and test that error doesn't from from
-    }
-    
-    func testShyAudioFileExistsandPlays() {
-        player.playFile(file: AudioPlayer.AudioFiles.Shy)
-        // In Swift 2.0 you will be able to throw an error and test that error doesn't from from
-    }
-    
-    func testZombieAudioFileExistsandPlays() {
-        player.playFile(file: AudioPlayer.AudioFiles.Zombie)
-        // In Swift 2.0 you will be able to throw an error and test that error doesn't from from
-    }
-    
-    func testEnumeratesAudioFiles() {
-        let urls = Bundle.main.urls(forResourcesWithExtension: "mp3", subdirectory: nil)
-        XCTAssert(urls!.count >= 50)
-        
-    }
-    
-    func testEnumerateZombieFiles() {
-        let urls = Bundle.main.urls(forResourcesWithExtension: "mp3", subdirectory: nil)
-        let zombieURLs = urls?.filter { $0.absoluteString.contains("Zombie") }
-        XCTAssert(zombieURLs!.count >= 50)
-    }
-    
-    func testEnumerateShyFiles() {
-        let urls = Bundle.main.urls(forResourcesWithExtension: "mp3", subdirectory: nil)
-        let shyURLs = urls?.filter { $0.absoluteString.contains("Shy") }
-        XCTAssert(shyURLs!.count >= 15)
-    }
-    
-    func testEnumerateInsistentFiles() {
-        let urls = Bundle.main.urls(forResourcesWithExtension: "mp3", subdirectory: nil)
-        let insistentURLs = urls?.filter { $0.absoluteString.contains("Insistent") }
-        XCTAssert(insistentURLs!.count >= 15)
+final class BeddyButlerAudioTests: XCTestCase {
+    func testPersonalityMigratesCaseInsensitively() {
+        XCTAssertEqual(ButlerPersonality(storedValue: "shy"), .shy)
+        XCTAssertEqual(ButlerPersonality(storedValue: "INSISTENT"), .insistent)
+        XCTAssertEqual(ButlerPersonality(storedValue: "Zombie"), .zombie)
+        XCTAssertEqual(ButlerPersonality(storedValue: "unknown"), .shy)
     }
 
-    
+    func testPersonalityEscalationCapsAtZombie() {
+        XCTAssertEqual(ButlerPersonality.shy.escalated, .insistent)
+        XCTAssertEqual(ButlerPersonality.insistent.escalated, .zombie)
+        XCTAssertEqual(ButlerPersonality.zombie.escalated, .zombie)
+    }
+
+    func testStablePersonalityIdentifiersRemainSeparateFromDisplayTitles() {
+        XCTAssertEqual(ButlerPersonality.zombie.rawValue, "zombie")
+        XCTAssertEqual(ButlerPersonality.zombie.title, "Zombie")
+    }
+
+    func testClipSelectorUsesEveryClipBeforeRepeating() throws {
+        let clips = [
+            URL(fileURLWithPath: "/tmp/one.mp3"),
+            URL(fileURLWithPath: "/tmp/two.mp3"),
+            URL(fileURLWithPath: "/tmp/three.mp3"),
+        ]
+        var selector = AudioClipSelector()
+        var selected: [URL] = []
+
+        for _ in clips {
+            selected.append(
+                try XCTUnwrap(selector.next(for: .shy, from: clips, shuffle: { $0 }))
+            )
+        }
+
+        XCTAssertEqual(Set(selected), Set(clips))
+        XCTAssertNotEqual(
+            selected.last,
+            selector.next(for: .shy, from: clips, shuffle: { $0 })
+        )
+    }
+
+    func testLibraryCategorizesClipsByPersonality() {
+        let clips = [
+            URL(fileURLWithPath: "/tmp/Nell - Shy.01.mp3"),
+            URL(fileURLWithPath: "/tmp/Nell - Insistent.01.mp3"),
+            URL(fileURLWithPath: "/tmp/Nell - Zombie.01.mp3"),
+            URL(fileURLWithPath: "/tmp/readme.txt"),
+        ]
+
+        XCTAssertEqual(AudioLibrary.clips(for: .shy, among: clips).count, 1)
+        XCTAssertEqual(AudioLibrary.clips(for: .insistent, among: clips).count, 1)
+        XCTAssertEqual(AudioLibrary.clips(for: .zombie, among: clips).count, 1)
+    }
+
+    func testAllBundledVoiceSetsAreAvailable() {
+        let library = AudioLibrary(bundle: .main)
+
+        XCTAssertEqual(library.clips(for: .shy).count, 18)
+        XCTAssertEqual(library.clips(for: .insistent).count, 19)
+        XCTAssertEqual(library.clips(for: .zombie).count, 66)
+    }
+
+    func testBundledZombieClipsAreBriefAndDecodable() throws {
+        let clips = AudioLibrary(bundle: .main).clips(for: .zombie)
+
+        XCTAssertFalse(clips.isEmpty)
+        for clip in clips {
+            let player = try AVAudioPlayer(contentsOf: clip)
+            XCTAssertLessThanOrEqual(
+                player.duration,
+                10,
+                "\(clip.lastPathComponent) is too long for a bedtime nudge"
+            )
+        }
+    }
 }
-

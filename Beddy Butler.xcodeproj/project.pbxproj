@@ -7,13 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2D076B6F1BA57F5B0052047C /* DoubleSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D076B6E1BA57F5B0052047C /* DoubleSliderView.swift */; };
+		BBDD00000000000000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BBDD00000000000000000002 /* PrivacyInfo.xcprivacy */; };
 		2D20F5B81B84CF3F00FE7EFC /* ButlerTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D20F5B71B84CF3F00FE7EFC /* ButlerTimer.swift */; };
-		2D28669E1BA994CB00E2B35F /* DoubleSliderCellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D28669D1BA994CB00E2B35F /* DoubleSliderCellView.swift */; };
-		2D2D56F21B9CD68C00705495 /* NotificationKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D2D56F11B9CD68C00705495 /* NotificationKeys.swift */; };
 		2D30884B1B83878E0015E1A0 /* Betty_ButlerUserDefaultsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D30884A1B83878E0015E1A0 /* Betty_ButlerUserDefaultsTests.swift */; };
-		2D45EB821BB7F61F00FCEAC2 /* DoubleSliderHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D45EB801BB7F61F00FCEAC2 /* DoubleSliderHandler.swift */; };
-		2D45EB831BB7F61F00FCEAC2 /* SliderHandle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D45EB811BB7F61F00FCEAC2 /* SliderHandle.swift */; };
 		2D4B84851B87230F00735187 /* UserDefaultKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4B84841B87230F00735187 /* UserDefaultKeys.swift */; };
 		2D5AD2191B87597A008953B1 /* Beddy_ButlerTimerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D5AD2181B87597A008953B1 /* Beddy_ButlerTimerTests.swift */; };
 		2D5ECA231C26F034005C9E1A /* 20151210 - Nell Watson - Insistent.01.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2D5EC9C81C26F034005C9E1A /* 20151210 - Nell Watson - Insistent.01.mp3 */; };
@@ -111,15 +107,23 @@
 		2D9B85331B83678F002795F8 /* Beddy_ButlerAudioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D9B85321B83678F002795F8 /* Beddy_ButlerAudioTests.swift */; };
 		2D9B85361B836944002795F8 /* AudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D9B85351B836944002795F8 /* AudioPlayer.swift */; };
 		2DA6062C1BDA2ADD0042F859 /* LoginItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA6062B1BDA2ADD0042F859 /* LoginItems.swift */; };
-		2DAF9DE91BBD57B20021FD0D /* SliderKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DAF9DE81BBD57B20021FD0D /* SliderKeys.swift */; };
 		2DC766FF1B78D25F00866072 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DC766FE1B78D25F00866072 /* AppDelegate.swift */; };
 		2DC767011B78D25F00866072 /* PreferencesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DC767001B78D25F00866072 /* PreferencesViewController.swift */; };
 		2DC767031B78D25F00866072 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2DC767021B78D25F00866072 /* Images.xcassets */; };
-		2DC767061B78D25F00866072 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2DC767041B78D25F00866072 /* Main.storyboard */; };
 		2DC767121B78D25F00866072 /* Beddy_ButlerSliderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DC767111B78D25F00866072 /* Beddy_ButlerSliderTests.swift */; };
 		2DCCAA221BD76EED00F96405 /* Beddy_ButlerLoginTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DCCAA211BD76EED00F96405 /* Beddy_ButlerLoginTests.swift */; };
-		2DD2B24C1B91E26B006318E8 /* RandomnessFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD2B24B1B91E26B006318E8 /* RandomnessFormatter.swift */; };
-		2DD2B24E1B91F6D1006318E8 /* FrequencySlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD2B24D1B91F6D1006318E8 /* FrequencySlider.swift */; };
+		A17B00000000000000000001 /* 20151210 - Nell Watson - Zombie.09b.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F00000000000000000001 /* 20151210 - Nell Watson - Zombie.09b.mp3 */; };
+		A17B00000000000000000002 /* 20151210 - Nell Watson - Zombie.09c.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F00000000000000000002 /* 20151210 - Nell Watson - Zombie.09c.mp3 */; };
+		A17B00000000000000000003 /* 20151210 - Nell Watson - Zombie.17b.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F00000000000000000003 /* 20151210 - Nell Watson - Zombie.17b.mp3 */; };
+		A17B00000000000000000004 /* 20151210 - Nell Watson - Zombie.17c.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F00000000000000000004 /* 20151210 - Nell Watson - Zombie.17c.mp3 */; };
+		A17B00000000000000000005 /* 20151210 - Nell Watson - Zombie.18b.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F00000000000000000005 /* 20151210 - Nell Watson - Zombie.18b.mp3 */; };
+		A17B00000000000000000006 /* 20151210 - Nell Watson - Zombie.18c.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F00000000000000000006 /* 20151210 - Nell Watson - Zombie.18c.mp3 */; };
+		A17B00000000000000000007 /* 20151210 - Nell Watson - Zombie.18d.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F00000000000000000007 /* 20151210 - Nell Watson - Zombie.18d.mp3 */; };
+		A17B00000000000000000008 /* 20151210 - Nell Watson - Zombie.19b.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F00000000000000000008 /* 20151210 - Nell Watson - Zombie.19b.mp3 */; };
+		A17B00000000000000000009 /* 20151210 - Nell Watson - Zombie.19c.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F00000000000000000009 /* 20151210 - Nell Watson - Zombie.19c.mp3 */; };
+		A17B0000000000000000000A /* 20151210 - Nell Watson - Zombie.19d.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F0000000000000000000A /* 20151210 - Nell Watson - Zombie.19d.mp3 */; };
+		A17B0000000000000000000B /* 20151210 - Nell Watson - Zombie.19e.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F0000000000000000000B /* 20151210 - Nell Watson - Zombie.19e.mp3 */; };
+		A17B0000000000000000000C /* 20151210 - Nell Watson - Zombie.20b.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F0000000000000000000C /* 20151210 - Nell Watson - Zombie.20b.mp3 */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -133,13 +137,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		2D076B6E1BA57F5B0052047C /* DoubleSliderView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DoubleSliderView.swift; path = "Beddy Butler/DoubleSliderView.swift"; sourceTree = "<group>"; };
+		BBDD00000000000000000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		2D20F5B71B84CF3F00FE7EFC /* ButlerTimer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ButlerTimer.swift; sourceTree = "<group>"; };
-		2D28669D1BA994CB00E2B35F /* DoubleSliderCellView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DoubleSliderCellView.swift; path = "Beddy Butler/DoubleSliderCellView.swift"; sourceTree = "<group>"; };
-		2D2D56F11B9CD68C00705495 /* NotificationKeys.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NotificationKeys.swift; sourceTree = "<group>"; };
 		2D30884A1B83878E0015E1A0 /* Betty_ButlerUserDefaultsTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Betty_ButlerUserDefaultsTests.swift; sourceTree = "<group>"; };
-		2D45EB801BB7F61F00FCEAC2 /* DoubleSliderHandler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DoubleSliderHandler.swift; sourceTree = "<group>"; };
-		2D45EB811BB7F61F00FCEAC2 /* SliderHandle.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SliderHandle.swift; sourceTree = "<group>"; };
 		2D4B84841B87230F00735187 /* UserDefaultKeys.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UserDefaultKeys.swift; sourceTree = "<group>"; };
 		2D5AD2181B87597A008953B1 /* Beddy_ButlerTimerTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerTimerTests.swift; sourceTree = "<group>"; };
 		2D5EC9C81C26F034005C9E1A /* 20151210 - Nell Watson - Insistent.01.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Insistent.01.mp3"; path = "Sounds/20151210 - Nell Watson - Insistent.01.mp3"; sourceTree = "<group>"; };
@@ -237,20 +237,28 @@
 		2D9B85321B83678F002795F8 /* Beddy_ButlerAudioTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerAudioTests.swift; sourceTree = "<group>"; };
 		2D9B85351B836944002795F8 /* AudioPlayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AudioPlayer.swift; sourceTree = "<group>"; };
 		2DA6062B1BDA2ADD0042F859 /* LoginItems.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoginItems.swift; sourceTree = "<group>"; };
-		2DAF9DE81BBD57B20021FD0D /* SliderKeys.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SliderKeys.swift; sourceTree = "<group>"; };
 		2DC766F91B78D25F00866072 /* Beddy Butler.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Beddy Butler.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2DC766FD1B78D25F00866072 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		2DC766FE1B78D25F00866072 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		2DC767001B78D25F00866072 /* PreferencesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesViewController.swift; sourceTree = "<group>"; };
 		2DC767021B78D25F00866072 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
-		2DC767051B78D25F00866072 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		2DC7670B1B78D25F00866072 /* Beddy ButlerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Beddy ButlerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2DC767101B78D25F00866072 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		2DC767111B78D25F00866072 /* Beddy_ButlerSliderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerSliderTests.swift; sourceTree = "<group>"; };
 		2DCCAA211BD76EED00F96405 /* Beddy_ButlerLoginTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerLoginTests.swift; sourceTree = "<group>"; };
-		2DD2B24B1B91E26B006318E8 /* RandomnessFormatter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RandomnessFormatter.swift; sourceTree = "<group>"; };
-		2DD2B24D1B91F6D1006318E8 /* FrequencySlider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FrequencySlider.swift; sourceTree = "<group>"; };
 		2DD3490E1BAEC1B30097D9E5 /* Beddy Butler.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "Beddy Butler.entitlements"; sourceTree = "<group>"; };
+		A17F00000000000000000001 /* 20151210 - Nell Watson - Zombie.09b.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.09b.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.09b.mp3"; sourceTree = "<group>"; };
+		A17F00000000000000000002 /* 20151210 - Nell Watson - Zombie.09c.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.09c.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.09c.mp3"; sourceTree = "<group>"; };
+		A17F00000000000000000003 /* 20151210 - Nell Watson - Zombie.17b.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.17b.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.17b.mp3"; sourceTree = "<group>"; };
+		A17F00000000000000000004 /* 20151210 - Nell Watson - Zombie.17c.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.17c.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.17c.mp3"; sourceTree = "<group>"; };
+		A17F00000000000000000005 /* 20151210 - Nell Watson - Zombie.18b.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.18b.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.18b.mp3"; sourceTree = "<group>"; };
+		A17F00000000000000000006 /* 20151210 - Nell Watson - Zombie.18c.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.18c.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.18c.mp3"; sourceTree = "<group>"; };
+		A17F00000000000000000007 /* 20151210 - Nell Watson - Zombie.18d.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.18d.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.18d.mp3"; sourceTree = "<group>"; };
+		A17F00000000000000000008 /* 20151210 - Nell Watson - Zombie.19b.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.19b.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.19b.mp3"; sourceTree = "<group>"; };
+		A17F00000000000000000009 /* 20151210 - Nell Watson - Zombie.19c.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.19c.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.19c.mp3"; sourceTree = "<group>"; };
+		A17F0000000000000000000A /* 20151210 - Nell Watson - Zombie.19d.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.19d.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.19d.mp3"; sourceTree = "<group>"; };
+		A17F0000000000000000000B /* 20151210 - Nell Watson - Zombie.19e.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.19e.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.19e.mp3"; sourceTree = "<group>"; };
+		A17F0000000000000000000C /* 20151210 - Nell Watson - Zombie.20b.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.20b.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.20b.mp3"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -320,6 +328,8 @@
 				2D5EC9F31C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.07.mp3 */,
 				2D5EC9F41C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.08.mp3 */,
 				2D5EC9F51C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.09.mp3 */,
+				A17F00000000000000000001 /* 20151210 - Nell Watson - Zombie.09b.mp3 */,
+				A17F00000000000000000002 /* 20151210 - Nell Watson - Zombie.09c.mp3 */,
 				2D5EC9F61C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.10.mp3 */,
 				2D5EC9F71C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.11.mp3 */,
 				2D5EC9F81C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.12.mp3 */,
@@ -328,9 +338,19 @@
 				2D5EC9FB1C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.15.mp3 */,
 				2D5EC9FC1C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.16.mp3 */,
 				2D5EC9FD1C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.17.mp3 */,
+				A17F00000000000000000003 /* 20151210 - Nell Watson - Zombie.17b.mp3 */,
+				A17F00000000000000000004 /* 20151210 - Nell Watson - Zombie.17c.mp3 */,
 				2D5EC9FE1C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.18.mp3 */,
+				A17F00000000000000000005 /* 20151210 - Nell Watson - Zombie.18b.mp3 */,
+				A17F00000000000000000006 /* 20151210 - Nell Watson - Zombie.18c.mp3 */,
+				A17F00000000000000000007 /* 20151210 - Nell Watson - Zombie.18d.mp3 */,
 				2D5EC9FF1C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.19.mp3 */,
+				A17F00000000000000000008 /* 20151210 - Nell Watson - Zombie.19b.mp3 */,
+				A17F00000000000000000009 /* 20151210 - Nell Watson - Zombie.19c.mp3 */,
+				A17F0000000000000000000A /* 20151210 - Nell Watson - Zombie.19d.mp3 */,
+				A17F0000000000000000000B /* 20151210 - Nell Watson - Zombie.19e.mp3 */,
 				2D5ECA001C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.20.mp3 */,
+				A17F0000000000000000000C /* 20151210 - Nell Watson - Zombie.20b.mp3 */,
 				2D5ECA011C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.21.mp3 */,
 				2D5ECA021C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.22.mp3 */,
 				2D5ECA031C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.23.mp3 */,
@@ -369,25 +389,12 @@
 			name = Assets;
 			sourceTree = "<group>";
 		};
-		2D45EB7F1BB7F5AA00FCEAC2 /* Archived Classes */ = {
-			isa = PBXGroup;
-			children = (
-				2D076B6E1BA57F5B0052047C /* DoubleSliderView.swift */,
-				2D28669D1BA994CB00E2B35F /* DoubleSliderCellView.swift */,
-			);
-			name = "Archived Classes";
-			path = ..;
-			sourceTree = "<group>";
-		};
 		2D9B85341B83691E002795F8 /* Models */ = {
 			isa = PBXGroup;
 			children = (
 				2D9B85351B836944002795F8 /* AudioPlayer.swift */,
 				2D20F5B71B84CF3F00FE7EFC /* ButlerTimer.swift */,
-				2D45EB811BB7F61F00FCEAC2 /* SliderHandle.swift */,
 				2D4B84841B87230F00735187 /* UserDefaultKeys.swift */,
-				2D2D56F11B9CD68C00705495 /* NotificationKeys.swift */,
-				2DAF9DE81BBD57B20021FD0D /* SliderKeys.swift */,
 				2DA6062B1BDA2ADD0042F859 /* LoginItems.swift */,
 			);
 			name = Models;
@@ -416,12 +423,9 @@
 			children = (
 				2DD3490E1BAEC1B30097D9E5 /* Beddy Butler.entitlements */,
 				2DC766FE1B78D25F00866072 /* AppDelegate.swift */,
-				2DC767041B78D25F00866072 /* Main.storyboard */,
 				2DC7671C1B78D38600866072 /* Controllers */,
 				2D9B85341B83691E002795F8 /* Models */,
-				2DC7671B1B78D37A00866072 /* Views */,
 				2DC767021B78D25F00866072 /* Images.xcassets */,
-				2D45EB7F1BB7F5AA00FCEAC2 /* Archived Classes */,
 				2D32ADB61B7FB9EE00E03480 /* Assets */,
 				2DC766FC1B78D25F00866072 /* Supporting Files */,
 			);
@@ -432,6 +436,7 @@
 			isa = PBXGroup;
 			children = (
 				2DC766FD1B78D25F00866072 /* Info.plist */,
+				BBDD00000000000000000002 /* PrivacyInfo.xcprivacy */,
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
@@ -457,16 +462,6 @@
 			name = "Supporting Files";
 			sourceTree = "<group>";
 		};
-		2DC7671B1B78D37A00866072 /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				2D45EB801BB7F61F00FCEAC2 /* DoubleSliderHandler.swift */,
-				2DD2B24D1B91F6D1006318E8 /* FrequencySlider.swift */,
-				2DD2B24B1B91E26B006318E8 /* RandomnessFormatter.swift */,
-			);
-			name = Views;
-			sourceTree = "<group>";
-		};
 		2DC7671C1B78D38600866072 /* Controllers */ = {
 			isa = PBXGroup;
 			children = (
@@ -485,7 +480,6 @@
 			buildPhases = (
 				2DC766F51B78D25F00866072 /* Sources */,
 				2DC766F61B78D25F00866072 /* Frameworks */,
-				2D6082BF1BC576C100FFF44C /* Run Versioning Script */,
 				2DC766F71B78D25F00866072 /* Resources */,
 			);
 			buildRules = (
@@ -521,9 +515,9 @@
 		2DC766F11B78D25F00866072 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 0700;
-				LastUpgradeCheck = 0710;
-				ORGANIZATIONNAME = "David Garces";
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				ORGANIZATIONNAME = "Nell Watson Inc.";
 				TargetAttributes = {
 					2DC766F81B78D25F00866072 = {
 						CreatedOnToolsVersion = 6.4;
@@ -531,7 +525,7 @@
 						ProvisioningStyle = Automatic;
 						SystemCapabilities = {
 							com.apple.Sandbox = {
-								enabled = 0;
+								enabled = 1;
 							};
 						};
 					};
@@ -566,6 +560,19 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BBDD00000000000000000001 /* PrivacyInfo.xcprivacy in Resources */,
+				A17B00000000000000000001 /* 20151210 - Nell Watson - Zombie.09b.mp3 in Resources */,
+				A17B00000000000000000002 /* 20151210 - Nell Watson - Zombie.09c.mp3 in Resources */,
+				A17B00000000000000000003 /* 20151210 - Nell Watson - Zombie.17b.mp3 in Resources */,
+				A17B00000000000000000004 /* 20151210 - Nell Watson - Zombie.17c.mp3 in Resources */,
+				A17B00000000000000000005 /* 20151210 - Nell Watson - Zombie.18b.mp3 in Resources */,
+				A17B00000000000000000006 /* 20151210 - Nell Watson - Zombie.18c.mp3 in Resources */,
+				A17B00000000000000000007 /* 20151210 - Nell Watson - Zombie.18d.mp3 in Resources */,
+				A17B00000000000000000008 /* 20151210 - Nell Watson - Zombie.19b.mp3 in Resources */,
+				A17B00000000000000000009 /* 20151210 - Nell Watson - Zombie.19c.mp3 in Resources */,
+				A17B0000000000000000000A /* 20151210 - Nell Watson - Zombie.19d.mp3 in Resources */,
+				A17B0000000000000000000B /* 20151210 - Nell Watson - Zombie.19e.mp3 in Resources */,
+				A17B0000000000000000000C /* 20151210 - Nell Watson - Zombie.20b.mp3 in Resources */,
 				2D5ECA341C26F034005C9E1A /* 20151210 - Nell Watson - Insistent.18.mp3 in Resources */,
 				2D5ECA731C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.44.mp3 in Resources */,
 				2D5ECA771C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.48.mp3 in Resources */,
@@ -650,7 +657,6 @@
 				2D5ECA361C26F034005C9E1A /* 20151210 - Nell Watson - Shy.01.mp3 in Resources */,
 				2D5ECA231C26F034005C9E1A /* 20151210 - Nell Watson - Insistent.01.mp3 in Resources */,
 				2D5ECA331C26F034005C9E1A /* 20151210 - Nell Watson - Insistent.17.mp3 in Resources */,
-				2DC767061B78D25F00866072 /* Main.storyboard in Resources */,
 				2D5ECA5C1C26F034005C9E1A /* 20151210 - Nell Watson - Zombie.21.mp3 in Resources */,
 				2D5ECA3D1C26F034005C9E1A /* 20151210 - Nell Watson - Shy.09.mp3 in Resources */,
 				2D5ECA421C26F034005C9E1A /* 20151210 - Nell Watson - Shy.14.mp3 in Resources */,
@@ -671,43 +677,18 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		2D6082BF1BC576C100FFF44C /* Run Versioning Script */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "Run Versioning Script";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/bash;
-			shellScript = "buildNumber=$(/usr/libexec/PlistBuddy -c \"Print CFBundleVersion\" \"$INFOPLIST_FILE\")\nbuildNumber=$(($buildNumber + 1))\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $buildNumber\" \"$INFOPLIST_FILE\"";
-		};
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
 		2DC766F51B78D25F00866072 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2D45EB821BB7F61F00FCEAC2 /* DoubleSliderHandler.swift in Sources */,
 				2D4B84851B87230F00735187 /* UserDefaultKeys.swift in Sources */,
-				2DAF9DE91BBD57B20021FD0D /* SliderKeys.swift in Sources */,
 				2D20F5B81B84CF3F00FE7EFC /* ButlerTimer.swift in Sources */,
-				2D28669E1BA994CB00E2B35F /* DoubleSliderCellView.swift in Sources */,
-				2DD2B24C1B91E26B006318E8 /* RandomnessFormatter.swift in Sources */,
 				2D9B85361B836944002795F8 /* AudioPlayer.swift in Sources */,
 				2DC767011B78D25F00866072 /* PreferencesViewController.swift in Sources */,
-				2D076B6F1BA57F5B0052047C /* DoubleSliderView.swift in Sources */,
-				2D2D56F21B9CD68C00705495 /* NotificationKeys.swift in Sources */,
 				2D6082C11BC669EB00FFF44C /* AboutViewController.swift in Sources */,
-				2D45EB831BB7F61F00FCEAC2 /* SliderHandle.swift in Sources */,
 				2DA6062C1BDA2ADD0042F859 /* LoginItems.swift in Sources */,
 				2DC766FF1B78D25F00866072 /* AppDelegate.swift in Sources */,
-				2DD2B24E1B91F6D1006318E8 /* FrequencySlider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -732,17 +713,6 @@
 			targetProxy = 2DC7670C1B78D25F00866072 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
-
-/* Begin PBXVariantGroup section */
-		2DC767041B78D25F00866072 /* Main.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				2DC767051B78D25F00866072 /* Base */,
-			);
-			name = Main.storyboard;
-			sourceTree = "<group>";
-		};
-/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		2DC767131B78D25F00866072 /* Debug */ = {
@@ -782,7 +752,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
@@ -810,9 +780,10 @@
 				CODE_SIGN_IDENTITY = "-";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_CODE_COVERAGE = NO;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_TESTABILITY = YES;
+				ENABLE_TESTABILITY = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -821,7 +792,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
 			};
@@ -836,10 +807,13 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = BBYYCBH7EW;
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "Beddy Butler/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 11.5;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nellwatson.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -858,10 +832,13 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = BBYYCBH7EW;
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "Beddy Butler/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 11.5;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nellwatson.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -885,8 +862,8 @@
 				);
 				INFOPLIST_FILE = "Beddy ButlerTests/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 11.5;
-				PRODUCT_BUNDLE_IDENTIFIER = "be.quantacorp.$(PRODUCT_NAME:rfc1034identifier)";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.nellwatson.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Beddy Butler.app/Contents/MacOS/Beddy Butler";
@@ -904,8 +881,8 @@
 				);
 				INFOPLIST_FILE = "Beddy ButlerTests/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 11.5;
-				PRODUCT_BUNDLE_IDENTIFIER = "be.quantacorp.$(PRODUCT_NAME:rfc1034identifier)";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.nellwatson.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Beddy Butler.app/Contents/MacOS/Beddy Butler";

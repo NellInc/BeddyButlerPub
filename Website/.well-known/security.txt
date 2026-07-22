@@ -1,0 +1,4 @@
+Contact: https://github.com/NellInc/beddybutlerpub/security
+Preferred-Languages: en
+Canonical: https://www.beddybutler.com/.well-known/security.txt
+Expires: 2027-07-22T00:00:00.000Z

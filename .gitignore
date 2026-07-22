@@ -49,6 +49,11 @@ playground.xcworkspace
 # .swiftpm
 
 .build/
+/tmp/
+/output/
+/.playwright-cli/
+__pycache__/
+*.py[cod]
 
 # CocoaPods
 # We recommend against adding the Pods directory to your .gitignore. However
@@ -96,6 +101,7 @@ iOSInjectionProject/
 !*.xcodeproj/project.xcworkspace/
 !*.xcworkspace/contents.xcworkspacedata
 /*.gcno
+*.profraw
 **/xcshareddata/WorkspaceSettings.xcsettings
 
 # End of https://www.toptal.com/developers/gitignore/api/xcode,swift

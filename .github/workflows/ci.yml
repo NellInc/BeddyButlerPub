@@ -1,0 +1,48 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches: [master, main, "revival/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select latest Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: Validate project and plists
+        run: |
+          plutil -lint "Beddy Butler.xcodeproj/project.pbxproj"
+          plutil -lint "Beddy Butler/Info.plist"
+          plutil -lint "Beddy Butler/Beddy Butler.entitlements"
+          plutil -lint "Beddy Butler/PrivacyInfo.xcprivacy"
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project "Beddy Butler.xcodeproj" \
+            -scheme "Beddy Butler" \
+            -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/BeddyButlerTests" \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Analyze
+        run: |
+          xcodebuild analyze \
+            -project "Beddy Butler.xcodeproj" \
+            -scheme "Beddy Butler" \
+            -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/BeddyButlerAnalyze" \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Release build
+        run: |
+          xcodebuild build \
+            -project "Beddy Butler.xcodeproj" \
+            -scheme "Beddy Butler" \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/BeddyButlerRelease" \
+            CODE_SIGNING_ALLOWED=NO

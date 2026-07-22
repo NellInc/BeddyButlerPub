@@ -1,108 +1,239 @@
-//
-//  Betty_ButlerUserDefaultsTests.swift
-//
-//
-//  Created by David Garces on 18/08/2015.
-//
-//
-
-import Cocoa
+import Foundation
 import XCTest
+
 @testable import Beddy_Butler
 
-class Betty_ButlerUserDefaultsTests: XCTestCase {
-
-    func registerUserDefaultValues() {
-        let sharedUserDefaults = UserDefaults.standard
-        for key in UserDefaultKeys.allValues {
-            switch key {
-            case .startTimeValue:
-                let theKey = sharedUserDefaults.object(forKey: key.rawValue) as? Double
-                if theKey == nil {
-                    sharedUserDefaults.set(75000.00, forKey: key.rawValue)
-                }
-            case .bedTimeValue:
-                let theKey = sharedUserDefaults.object(forKey: key.rawValue) as? Double
-                if theKey == nil {
-                    sharedUserDefaults.set(85000.00, forKey: key.rawValue)
-                }
-            case .selectedSound:
-                let theKey = sharedUserDefaults.object(forKey: key.rawValue) as? String
-                if theKey == nil {
-                    sharedUserDefaults.set(AudioPlayer.AudioFiles.Shy.description(), forKey: key.rawValue)
-                }
-            case .runStartup:
-                let theKey = sharedUserDefaults.object(forKey: key.rawValue) as? Bool
-                if theKey == nil {
-                    sharedUserDefaults.set(false, forKey: key.rawValue)
-                }
-            case .frequency:
-                let theKey = sharedUserDefaults.object(forKey: key.rawValue) as? Double
-                if theKey == nil {
-                    sharedUserDefaults.set(5.00, forKey: key.rawValue)
-                }
-            case .isMuted:
-                let theKey = sharedUserDefaults.object(forKey: key.rawValue) as? Double
-                if theKey == nil {
-                    sharedUserDefaults.set(false, forKey: key.rawValue)
-                }
-            }
+final class BeddyButlerUserDefaultsTests: XCTestCase {
+    private func freshDefaults() -> UserDefaults {
+        let suiteName = "BeddyButlerTests.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            fatalError("Could not create isolated user defaults")
         }
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
     }
 
-    override func setUp() {
-        super.setUp()
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+    @MainActor
+    func testDefaultsUseSensibleFirstLaunchValues() {
+        let defaults = freshDefaults()
+        let settings = AppSettings(defaults: defaults)
 
-        registerUserDefaultValues()
+        XCTAssertEqual(settings.startSeconds, 21 * 3_600 + 30 * 60)
+        XCTAssertEqual(settings.bedSeconds, 23 * 3_600)
+        XCTAssertEqual(settings.frequencyMinutes, 8)
+        XCTAssertEqual(settings.personality, .shy)
+        XCTAssertFalse(settings.progressiveMode)
+        XCTAssertEqual(settings.voiceVolume, 0.8)
+        XCTAssertEqual(settings.nudgeDelivery, .sound)
+        XCTAssertEqual(settings.activeWeekdays, Set(1...7))
+        XCTAssertFalse(settings.alternateScheduleEnabled)
+        XCTAssertEqual(settings.alternateScheduleWeekdays, [6, 7])
+        XCTAssertEqual(settings.primaryScheduleName, "Regular")
+        XCTAssertEqual(settings.alternateScheduleName, "Alternate")
+        XCTAssertEqual(settings.alternateSchedulePattern, .selectedWeekdays)
+        XCTAssertEqual(settings.rotationPrimaryDays, 4)
+        XCTAssertEqual(settings.rotationAlternateDays, 4)
+        XCTAssertNil(settings.tonightOverrideDate)
+        XCTAssertFalse(settings.notificationAlertsEnabled)
+        XCTAssertEqual(settings.pendingVisualNudgeCount, 0)
+        XCTAssertNil(settings.lastVisualNudgeAt)
+        XCTAssertFalse(settings.hasCompletedOnboarding)
+        XCTAssertFalse(AppSettings(defaults: defaults).hasCompletedOnboarding)
     }
 
-    override func tearDown() {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-        super.tearDown()
+    @MainActor
+    func testLegacyNumbersAndPersonalityAreMigrated() {
+        let defaults = freshDefaults()
+        defaults.set(75_000.0, forKey: UserDefaultKeys.startTimeValue.rawValue)
+        defaults.set(85_000, forKey: UserDefaultKeys.bedTimeValue.rawValue)
+        defaults.set("INSISTENT", forKey: UserDefaultKeys.selectedSound.rawValue)
+        defaults.set(14, forKey: UserDefaultKeys.frequency.rawValue)
+
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.startSeconds, 75_000)
+        XCTAssertEqual(settings.bedSeconds, 85_000)
+        XCTAssertEqual(settings.personality, .insistent)
+        XCTAssertEqual(settings.frequencyMinutes, 14)
+        XCTAssertTrue(settings.hasCompletedOnboarding)
     }
 
-    func testValueforNonExistingKey() {
-        let value: Any = UserDefaults.standard.object(forKey: "testKey") as Any
-        XCTAssertNil(value, "value for testKey should always be nil because it does not exist")
+    @MainActor
+    func testUpdatesPersistAndClampUnsafeValues() {
+        let defaults = freshDefaults()
+        let settings = AppSettings(defaults: defaults)
+
+        settings.updateStartSeconds(-10)
+        settings.updateBedSeconds(100_000)
+        settings.updateFrequencyMinutes(100)
+        settings.updatePersonality(.zombie)
+        settings.updateProgressiveMode(true)
+        settings.updateVoiceVolume(2)
+        settings.updateNudgeDelivery(.visual)
+        settings.updateActiveWeekday(2, isActive: false)
+        settings.updateAlternateScheduleEnabled(true)
+        settings.updateAlternateScheduleWeekday(6, isSelected: false)
+        settings.updateAlternateScheduleWeekday(1, isSelected: true)
+        settings.updateAlternateStartSeconds(22 * 3_600)
+        settings.updateAlternateBedSeconds(2 * 3_600)
+        settings.updatePrimaryScheduleName("Weekday")
+        settings.updateAlternateScheduleName("Night shift")
+        settings.updateAlternateSchedulePattern(.rotatingCycle)
+        settings.updateRotationPrimaryDays(35)
+        settings.updateRotationAlternateDays(0)
+        let tonight = Date(timeIntervalSince1970: 2_000_000_000)
+        settings.enableTonightOverride(on: tonight)
+        settings.updateTonightOverrideStartSeconds(20 * 3_600)
+        settings.updateTonightOverrideBedSeconds(1 * 3_600)
+        settings.updateNotificationAlertsEnabled(true)
+        settings.completeOnboarding()
+
+        let restored = AppSettings(defaults: defaults)
+        XCTAssertEqual(restored.startSeconds, 0)
+        XCTAssertEqual(restored.bedSeconds, 86_399)
+        XCTAssertEqual(restored.frequencyMinutes, 30)
+        XCTAssertEqual(restored.personality, .zombie)
+        XCTAssertTrue(restored.progressiveMode)
+        XCTAssertEqual(restored.voiceVolume, 1)
+        XCTAssertEqual(restored.nudgeDelivery, .visual)
+        XCTAssertFalse(restored.activeWeekdays.contains(2))
+        XCTAssertTrue(restored.alternateScheduleEnabled)
+        XCTAssertEqual(restored.alternateScheduleWeekdays, [1, 7])
+        XCTAssertEqual(restored.alternateStartSeconds, 22 * 3_600)
+        XCTAssertEqual(restored.alternateBedSeconds, 2 * 3_600)
+        XCTAssertEqual(restored.primaryScheduleName, "Weekday")
+        XCTAssertEqual(restored.alternateScheduleName, "Night shift")
+        XCTAssertEqual(restored.alternateSchedulePattern, .rotatingCycle)
+        XCTAssertEqual(restored.rotationPrimaryDays, 28)
+        XCTAssertEqual(restored.rotationAlternateDays, 1)
+        XCTAssertEqual(
+            restored.tonightOverrideDate,
+            Calendar.autoupdatingCurrent.startOfDay(for: tonight)
+        )
+        XCTAssertEqual(restored.tonightOverrideStartSeconds, 20 * 3_600)
+        XCTAssertEqual(restored.tonightOverrideBedSeconds, 1 * 3_600)
+        XCTAssertTrue(restored.notificationAlertsEnabled)
+        XCTAssertTrue(restored.hasCompletedOnboarding)
     }
 
-    func testValueForKeyBedTimeValue() {
-        let value = UserDefaults.standard.object(forKey: UserDefaultKeys.bedTimeValue.rawValue) as? Double
-        XCTAssertNotNil(value)
-        guard let value else { return }
-        XCTAssert(value > 0, "User stored preference for bed time value can be accessed")
+    @MainActor
+    func testLegacyWeekendScheduleMigratesToFridayAndSaturdayAlternateNights() {
+        let defaults = freshDefaults()
+        defaults.set(true, forKey: UserDefaultKeys.separateWeekendSchedule.rawValue)
+        defaults.set(23 * 3_600, forKey: UserDefaultKeys.weekendStartTimeValue.rawValue)
+        defaults.set(2 * 3_600, forKey: UserDefaultKeys.weekendBedTimeValue.rawValue)
+
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertTrue(settings.alternateScheduleEnabled)
+        XCTAssertEqual(settings.alternateScheduleWeekdays, [6, 7])
+        XCTAssertEqual(settings.alternateStartSeconds, 23 * 3_600)
+        XCTAssertEqual(settings.alternateBedSeconds, 2 * 3_600)
+        XCTAssertNil(defaults.object(forKey: UserDefaultKeys.separateWeekendSchedule.rawValue))
+        XCTAssertEqual(
+            defaults.array(forKey: UserDefaultKeys.alternateScheduleWeekdays.rawValue) as? [Int],
+            [6, 7]
+        )
     }
 
-    func testValueForKeyStartTimeValue() {
-        let value = UserDefaults.standard.object(forKey: UserDefaultKeys.startTimeValue.rawValue) as? Double
-        guard let value else { return }
-        XCTAssert(value > 0, "User stored preference for start time value can be accessed")
+    @MainActor
+    func testAlternateScheduleAcceptsCommandLineStyleBooleanStrings() {
+        let defaults = freshDefaults()
+        defaults.set("YES", forKey: UserDefaultKeys.alternateScheduleEnabled.rawValue)
+
+        XCTAssertTrue(AppSettings(defaults: defaults).alternateScheduleEnabled)
     }
 
-    func testValueForKeyrunStartupValue() {
-        let value: AnyObject? = UserDefaults.standard.object(forKey: UserDefaultKeys.runStartup.rawValue) as AnyObject
+    @MainActor
+    func testVolumeClampsAtBothEnds() {
+        let settings = AppSettings(defaults: freshDefaults())
 
-        XCTAssertNotNil(value)
-        guard let value else { return }
-        XCTAssert(value is Bool, "User stored preference for run at startup value can be accessed")
+        settings.updateVoiceVolume(-1)
+        XCTAssertEqual(settings.voiceVolume, 0)
+        settings.updateVoiceVolume(0.55)
+        XCTAssertEqual(settings.voiceVolume, 0.55)
+        settings.updateVoiceVolume(20)
+        XCTAssertEqual(settings.voiceVolume, 1)
     }
 
-    func testValueForKeySelectedSound() {
-        let value = UserDefaults.standard.object(forKey: UserDefaultKeys.selectedSound.rawValue) as? String
-        XCTAssertNotNil(value)
-        guard let value else { return }
-        XCTAssertNotEqual(value, String(), "User stored preference for selected sound value can be accessed")
+    @MainActor
+    func testUnknownNudgeDeliveryMigratesToSound() {
+        let defaults = freshDefaults()
+        defaults.set("Haptic", forKey: UserDefaultKeys.nudgeDelivery.rawValue)
+
+        XCTAssertEqual(AppSettings(defaults: defaults).nudgeDelivery, .sound)
     }
 
-    func testValueForKeyStartTimeCanBeConvertedToDate() {
-        let value = UserDefaults.standard.object(forKey: UserDefaultKeys.startTimeValue.rawValue) as? Double
-        XCTAssertNotNil(value)
+    @MainActor
+    func testVisualNudgeStatePersistsUntilAcknowledged() {
+        let defaults = freshDefaults()
+        let settings = AppSettings(defaults: defaults)
+        let timestamp = Date(timeIntervalSince1970: 2_000_000_000)
 
-        let date = NSDate(timeIntervalSince1970: value!)
-        XCTAssertNotNil(value, "Start date can be converted to date")
+        settings.recordVisualNudge(at: timestamp)
+        settings.recordVisualNudge(at: timestamp.addingTimeInterval(60))
+
+        let restored = AppSettings(defaults: defaults)
+        XCTAssertEqual(restored.pendingVisualNudgeCount, 2)
+        XCTAssertEqual(restored.lastVisualNudgeAt, timestamp.addingTimeInterval(60))
+
+        restored.clearVisualNudges()
+        let cleared = AppSettings(defaults: defaults)
+        XCTAssertEqual(cleared.pendingVisualNudgeCount, 0)
+        XCTAssertNil(cleared.lastVisualNudgeAt)
     }
 
+    @MainActor
+    func testLegacyDisplayValuesNormalizeToStableIdentifiers() {
+        let defaults = freshDefaults()
+        defaults.set("Visual", forKey: UserDefaultKeys.nudgeDelivery.rawValue)
+        defaults.set("Zombie", forKey: UserDefaultKeys.selectedSound.rawValue)
 
+        let settings = AppSettings(defaults: defaults)
 
+        XCTAssertEqual(settings.nudgeDelivery, .visual)
+        XCTAssertEqual(settings.personality, .zombie)
+        XCTAssertEqual(defaults.string(forKey: UserDefaultKeys.nudgeDelivery.rawValue), "visual")
+        XCTAssertEqual(defaults.string(forKey: UserDefaultKeys.selectedSound.rawValue), "zombie")
+    }
+
+    @MainActor
+    func testMuteExpiresAndCanBeResumed() {
+        let settings = AppSettings(defaults: freshDefaults())
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+        settings.mute(until: now.addingTimeInterval(600))
+        XCTAssertTrue(settings.isMuted(at: now))
+        settings.clearExpiredMute(at: now.addingTimeInterval(601))
+        XCTAssertFalse(settings.isMuted(at: now.addingTimeInterval(601)))
+
+        settings.mute(until: now.addingTimeInterval(600))
+        settings.resumeNudges()
+        XCTAssertFalse(settings.isMuted(at: now))
+    }
+
+    @MainActor
+    func testOneNightOverrideExpiresAfterItsCrossMidnightWindow() throws {
+        let settings = AppSettings(defaults: freshDefaults())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/London"))
+        let anchor = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 21))
+        )
+        settings.enableTonightOverride(on: anchor, calendar: calendar)
+        settings.updateTonightOverrideStartSeconds(22 * 3_600)
+        settings.updateTonightOverrideBedSeconds(1 * 3_600)
+
+        let beforeBed = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 22, hour: 0, minute: 30))
+        )
+        settings.clearExpiredTonightOverride(at: beforeBed, calendar: calendar)
+        XCTAssertNotNil(settings.tonightOverrideDate)
+
+        let afterBed = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 22, hour: 1, minute: 1))
+        )
+        settings.clearExpiredTonightOverride(at: afterBed, calendar: calendar)
+        XCTAssertNil(settings.tonightOverrideDate)
+    }
 }
