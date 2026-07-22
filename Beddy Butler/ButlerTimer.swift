@@ -1,295 +1,586 @@
-//
-//  ButlerTimer.swift
-//  Beddy Butler
-//
-//  Created by David Garces on 19/08/2015.
-//  Copyright (c) 2015-2025 Nell Watson Inc. All rights reserved.
-//
-
-import Foundation
 import Cocoa
+import Foundation
+import OSLog
 
-class ButlerTimer {
+struct BedtimeWindow: Equatable, Sendable {
+    let start: Date
+    let end: Date
 
-    //MARK: Properties
+    var duration: TimeInterval { end.timeIntervalSince(start) }
 
-    var numberOfRepeats = 5
-    var timer: Timer?
-    /// the audio player that will be used in the play sound action
-    var audioPlayer: AudioPlayer
-    let butlerImage = NSImage(named: NSImage.Name("Butler"))
-
-    //MARK: Computed properties
-
-    //MARK: User Properties
-    var userStartTime: Double? {
-        get {
-            return UserDefaults.standard.object(forKey: UserDefaultKeys.startTimeValue.rawValue) as? Double
-        }
-        set {
-            UserDefaults.standard.set(newValue!, forKey: UserDefaultKeys.startTimeValue.rawValue)
-            UserDefaults.standard.synchronize()
-            NotificationCenter.default.post(name: Notification.Name(rawValue: NotificationKeys.userPreferenceChanged.rawValue), object: self)
-        }
+    func contains(_ date: Date) -> Bool {
+        start <= date && date < end
     }
-
-    var userBedTime: Double? {
-        get {
-            return UserDefaults.standard.object(forKey: UserDefaultKeys.bedTimeValue.rawValue) as? Double
-        }
-        set {
-            UserDefaults.standard.set(newValue!, forKey: UserDefaultKeys.bedTimeValue.rawValue)
-            UserDefaults.standard.synchronize()
-            NotificationCenter.default.post(name: Notification.Name(rawValue: NotificationKeys.userPreferenceChanged.rawValue), object: self)
-        }
-    }
-
-    var userMuteSound: Bool? {
-        set {
-            UserDefaults.standard.setValue(newValue, forKey: UserDefaultKeys.isMuted.rawValue)
-        }
-        get {
-            return UserDefaults.standard.object(forKey: UserDefaultKeys.isMuted.rawValue) as? Bool
-        }
-    }
-
-    ///TODO: Delete Temporary frequency variable
-    var userSelectedFrequency: Double? {
-        return UserDefaults.standard.object(forKey: UserDefaultKeys.frequency.rawValue) as? Double
-    }
-
-    var userSelectedSound: AudioPlayer.AudioFiles {
-        if let audioFile = UserDefaults.standard.object(forKey: UserDefaultKeys.selectedSound.rawValue) as? String {
-            return AudioPlayer.AudioFiles(stringValue: audioFile)
-
-        } else {
-            return AudioPlayer.AudioFiles(stringValue: String())
-        }
-    }
-
-    /// Calculates the start date based on the current user value
-    var startDate: Date {
-        guard let userStartTime = self.userStartTime else { return Date()}
-        let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: self.currentDate)
-        // Convert seconds to int, we are sure we will not exceed max int value as we only have 86,000 seconds or less
-        let seconds = Int(userStartTime) + TimeZone.current.secondsFromGMT()
-        return calendar.date(byAdding: .second, value: seconds, to: startOfDay)!
-    }
-
-    /// Gets today's date
-    var currentDate: Date {
-        let currentLocalTime = Date()
-
-        let localTimeZone = TimeZone.current
-        let secondsFromGTM = TimeInterval.init(localTimeZone.secondsFromGMT())
-        let resultDate = Date(timeInterval: secondsFromGTM, since: currentLocalTime)
-
-        return resultDate
-    }
-
-    /// Calculates the end date based on the current user value
-    var bedDate: Date {
-        guard let userBedTime = self.userBedTime else { return Date()}
-        let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: self.currentDate)
-        // Convert seconds to int, we are sure we will not exceed max int value as we only have 86,000 seconds or less
-        let seconds = Int(userBedTime) + TimeZone.current.secondsFromGMT()
-        return calendar.date(byAdding: .second, value: seconds, to: startOfDay)!
-
-    }
-
-    //MARK: Initialisers and deinitialisers
-
-    init() {
-        self.audioPlayer = AudioPlayer()
-
-        // Not to be called directly...
-        calculateNewTimer()
-
-        // Register observers to recalculate the timer
-        NotificationCenter.default.addObserver(self, selector: #selector(self.calculateNewTimer), name: Notification.Name(NotificationKeys.userPreferenceChanged.rawValue), object: nil)
-
-        NotificationCenter.default.addObserver(self, selector: #selector(self.validateUserTimeValue), name: UserDefaults.didChangeNotification , object: nil)
-
-        NotificationCenter.default.addObserver(self, selector: #selector(self.updateUserTimeValue), name: Notification.Name(NotificationKeys.startSliderChanged.rawValue), object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(self.updateUserTimeValue), name: Notification.Name(NotificationKeys.endSliderChanged.rawValue), object: nil)
-
-    }
-
-    deinit {
-        timer?.invalidate()
-        NotificationCenter.default.removeObserver(self)
-    }
-
-    // MARK: Timer methods
-
-    /// Play sound should invalidate the current timer and schedule the next timer
-    @objc func playSound() {
-        //let previousImage = AppDelegate.statusItem?.image
-        var result: String
-
-        //AppDelegate.statusItem?.image = butlerImage
-        if !userMuteSound! {
-            audioPlayer.playFile(file: userSelectedSound)
-            // TO DO: Remove temporary log
-            result = "Sound played: \(userSelectedSound), Current time is: \(currentDate), Set Start Date: \(startDate), Set Bed Date: \(bedDate), Time between plays (frequency): \(userSelectedFrequency!) \n"
-
-        } else {
-            // TO DO: Remove temporary log
-            result = "Muted by user: \(userSelectedSound), Current time is: \(currentDate), Set Start Date: \(startDate), Set Bed Date: \(bedDate), Time between plays (frequency): \(userSelectedFrequency!) \n"
-
-        }
-        writeToLogFile(message: result)
-        NSLog(result)
-
-        calculateNewTimer()
-        //AppDelegate.statusItem?.image = previousImage
-    }
-
-    @objc func calculateNewTimer() {
-        //Invalidate curent timer
-        if let theTimer = timer {
-            theTimer.invalidate()
-        }
-
-        var newInterval = randomInterval
-        let dateAfterInterval = Date(timeInterval: randomInterval, since: self.currentDate)
-        //Analyse interval:
-        // 1. If Now + interval or Now alone are before start time (date), create interval from now until after start date + (5-20min)
-        if self.startDate > dateAfterInterval {
-            newInterval = self.startDate.timeIntervalSince(self.currentDate) + newInterval
-            setNewTimer(timeInterval: newInterval)
-        } else if dateAfterInterval > self.startDate && self.bedDate > dateAfterInterval {
-            setNewTimer(timeInterval: newInterval)
-        } else {
-            //the date will be after the interval so we calculate a new interval for tomorrow
-            let calendar = Calendar.current
-            var components = DateComponents()
-            components.day = 1
-            components.second = Int(newInterval)
-
-            let theNewDate = calendar.date(byAdding: components, to: self.startDate)
-            newInterval = theNewDate!.timeIntervalSince(self.currentDate)
-            setNewTimer(timeInterval: newInterval)
-            // finally we make sure that the sound is not muted anymore
-            self.userMuteSound = false
-        }
-    }
-
-    /// Invalidates the current timer and sets a new timer using the specified interval
-    func setNewTimer(timeInterval: TimeInterval) {
-        // Shcedule timer with the initial value
-        self.timer = Timer.scheduledTimer(timeInterval: timeInterval, target: self, selector: #selector(self.playSound), userInfo: nil, repeats: false)
-        RunLoop.current.add(self.timer!, forMode: RunLoop.Mode.common)
-        //TODO: Remove log entry
-        NSLog("Timer created for interval: \(timeInterval)")
-    }
-
-    /**
-     Create a random number of seconds from the range of 5 to 20 minutes (i.e. 300 to 1200 secs) arc4random_uniform(upper_bound) will return a uniformly distributed random number less than upper_bound. arc4random_uniform() is recommended over constructions like ``arc4random() % upper_bound'' as it avoids "modulo bias" when the upper bound is not a power of two.
-
-     - Returns: If the user has selected a frequency, a random number in that frequency, otherwise a random number between 5 and 20 minutes.
-
-     ref: http://stackoverflow.com/questions/3420581/how-to-select-range-of-values-when-using-arc4random
-     ref: https://en.wikipedia.org/wiki/Fisher–Yates_shuffle#Modulo_bias
-     */
-    var randomInterval: TimeInterval {
-
-        var randomStart: UInt32
-        var randomEnd: UInt32
-
-        if let theKey = userSelectedFrequency {
-            randomStart = UInt32(theKey * 60)
-            randomEnd = UInt32( ( (theKey * 0.7) + theKey) * 60 )
-        } else {
-            randomStart = 300
-            randomEnd = 901
-        }
-
-        let source = arc4random_uniform(randomEnd) // should return a random number between 0 and 900
-        return TimeInterval(source + randomStart) // adding 300 will ensure that it will always be from 300 to 1200
-
-    }
-
-    //MARK: Ratio handling
-    @objc func updateUserTimeValue(notification: NSNotification) {
-        if let newValue = notification.object as? Double {
-            switch notification.name {
-            case Notification.Name(rawValue: NotificationKeys.startSliderChanged.rawValue):
-                //let convertedValue = newValue < 0.5 ? newValue * 86400 : (newValue + 0.080) * 86400
-                let convertedValue = newValue * 86400 / 0.92
-                self.userStartTime = convertedValue
-            case Notification.Name(rawValue: NotificationKeys.endSliderChanged.rawValue):
-                //let convertedValue = newValue > 0.5 ? newValue * 86400 : (newValue - 0.080) * 86400
-                let convertedValue = (newValue - 0.080) * 86400 / 0.92
-                self.userBedTime = convertedValue
-            default:
-                break;
-            }
-        }
-    }
-
-    @objc func validateUserTimeValue() {
-        let timeGap = 7200.00
-        let maxTime = 86400.00
-        if let userBedTime, let userStartTime, userBedTime < userStartTime {
-            if userStartTime + timeGap > maxTime {
-                self.userStartTime = userBedTime - timeGap
-            } else {
-                self.userBedTime = userStartTime + timeGap
-            }
-        }
-    }
-
-    // TODO: Remove test interval -
-    var testInteval: TimeInterval {
-        return TimeInterval(arc4random_uniform(100))
-    }
-
-    //TODO: Remove log file and logging functionality -
-    func writeToLogFile(message: String){
-        //Create file manager instance
-        let fileManager = FileManager()
-
-        let URLs = fileManager.urls(for: FileManager.SearchPathDirectory.documentDirectory, in: FileManager.SearchPathDomainMask.userDomainMask)
-        let documentURL = URLs[0]
-        let fileURL = documentURL.appendingPathComponent("BeddyButlerLog.txt")
-
-        let data = message.data(using: .utf8)
-
-        //if !fileManager.fileExistsAtPath(fileURL) {
-        do {
-            if !fileManager.fileExists(atPath: fileURL.path) {
-
-                if !fileManager.createFile(atPath: fileURL.path, contents: data , attributes: nil) {
-                    NSLog("File not created: \(fileURL.absoluteString)")
-                }
-            }
-
-            let handle: FileHandle = try FileHandle(forWritingTo: fileURL)
-            handle.truncateFile(atOffset: handle.seekToEndOfFile())
-            handle.write(data!)
-            handle.closeFile()
-
-        }
-        catch {
-            NSLog("Error writing to file: \(error)")
-        }
-
-    }
-
-
 }
 
-extension NSDate {
-    class func randomTimeBetweenDates(lhs: NSDate, _ rhs: NSDate) -> NSDate {
-        let lhsInterval = lhs.timeIntervalSince1970
-        let rhsInterval = rhs.timeIntervalSince1970
-        let difference = fabs(rhsInterval - lhsInterval)
-        let randomOffset = arc4random_uniform(UInt32(difference))
-        let minimum = min(lhsInterval, rhsInterval)
-        let randomInterval = minimum + TimeInterval(randomOffset)
-        return NSDate(timeIntervalSince1970: randomInterval)
+struct ScheduledNudge: Equatable, Sendable {
+    let fireDate: Date
+    let window: BedtimeWindow
+}
+
+struct OneNightScheduleOverride: Equatable, Sendable {
+    let anchorDate: Date
+    let startSeconds: Int
+    let bedSeconds: Int
+}
+
+struct WeeklyBedtimeSchedule: Equatable, Sendable {
+    let startSeconds: Int
+    let bedSeconds: Int
+    let activeWeekdays: Set<Int>
+    let alternateScheduleEnabled: Bool
+    let alternateWeekdays: Set<Int>
+    let alternateStartSeconds: Int
+    let alternateBedSeconds: Int
+    let alternatePattern: AlternateSchedulePattern
+    let rotationAnchorDate: Date
+    let rotationPrimaryDays: Int
+    let rotationAlternateDays: Int
+    let oneNightOverride: OneNightScheduleOverride?
+
+    init(
+        startSeconds: Int,
+        bedSeconds: Int,
+        activeWeekdays: Set<Int>,
+        alternateScheduleEnabled: Bool,
+        alternateWeekdays: Set<Int>,
+        alternateStartSeconds: Int,
+        alternateBedSeconds: Int,
+        alternatePattern: AlternateSchedulePattern = .selectedWeekdays,
+        rotationAnchorDate: Date = .distantPast,
+        rotationPrimaryDays: Int = 4,
+        rotationAlternateDays: Int = 4,
+        oneNightOverride: OneNightScheduleOverride? = nil
+    ) {
+        self.startSeconds = startSeconds
+        self.bedSeconds = bedSeconds
+        self.activeWeekdays = activeWeekdays
+        self.alternateScheduleEnabled = alternateScheduleEnabled
+        self.alternateWeekdays = alternateWeekdays
+        self.alternateStartSeconds = alternateStartSeconds
+        self.alternateBedSeconds = alternateBedSeconds
+        self.alternatePattern = alternatePattern
+        self.rotationAnchorDate = rotationAnchorDate
+        self.rotationPrimaryDays = min(max(rotationPrimaryDays, 1), 28)
+        self.rotationAlternateDays = min(max(rotationAlternateDays, 1), 28)
+        self.oneNightOverride = oneNightOverride
+    }
+
+    static func everyNight(startSeconds: Int, bedSeconds: Int) -> Self {
+        Self(
+            startSeconds: startSeconds,
+            bedSeconds: bedSeconds,
+            activeWeekdays: Set(1...7),
+            alternateScheduleEnabled: false,
+            alternateWeekdays: [],
+            alternateStartSeconds: startSeconds,
+            alternateBedSeconds: bedSeconds
+        )
+    }
+
+    func times(for anchorDay: Date, calendar: Calendar) -> (start: Int, bed: Int)? {
+        if let oneNightOverride,
+            calendar.isDate(anchorDay, inSameDayAs: oneNightOverride.anchorDate)
+        {
+            return (oneNightOverride.startSeconds, oneNightOverride.bedSeconds)
+        }
+
+        let weekday = calendar.component(.weekday, from: anchorDay)
+        guard activeWeekdays.contains(weekday) else { return nil }
+        if alternateScheduleEnabled, usesAlternateSchedule(on: anchorDay, calendar: calendar) {
+            return (alternateStartSeconds, alternateBedSeconds)
+        }
+        return (startSeconds, bedSeconds)
+    }
+
+    func usesAlternateSchedule(on anchorDay: Date, calendar: Calendar) -> Bool {
+        switch alternatePattern {
+        case .selectedWeekdays:
+            return alternateWeekdays.contains(calendar.component(.weekday, from: anchorDay))
+        case .rotatingCycle:
+            let anchor = calendar.startOfDay(for: rotationAnchorDate)
+            let day = calendar.startOfDay(for: anchorDay)
+            let elapsed = calendar.dateComponents([.day], from: anchor, to: day).day ?? 0
+            let cycleLength = rotationPrimaryDays + rotationAlternateDays
+            let position = ((elapsed % cycleLength) + cycleLength) % cycleLength
+            return position >= rotationPrimaryDays
+        }
+    }
+}
+
+/// Performs all scheduling in a real calendar and time zone.
+///
+/// The original app shifted `Date` values by the GMT offset manually, which applied
+/// the offset twice and failed around midnight and daylight-saving changes. This
+/// calculator works with local wall-clock components and lets Calendar resolve DST.
+struct ScheduleCalculator: Sendable {
+    private var calendar: Calendar
+
+    init(calendar: Calendar = .autoupdatingCurrent) {
+        self.calendar = calendar
+    }
+
+    func window(
+        containingOrAfter date: Date,
+        startSeconds: Int,
+        bedSeconds: Int
+    ) -> BedtimeWindow? {
+        window(
+            containingOrAfter: date,
+            schedule: .everyNight(startSeconds: startSeconds, bedSeconds: bedSeconds)
+        )
+    }
+
+    func window(
+        containingOrAfter date: Date,
+        schedule: WeeklyBedtimeSchedule
+    ) -> BedtimeWindow? {
+        windows(around: date, schedule: schedule)
+            .first { $0.contains(date) || $0.start > date }
+    }
+
+    func nextNudge(
+        after date: Date,
+        interval: TimeInterval,
+        startSeconds: Int,
+        bedSeconds: Int
+    ) -> ScheduledNudge? {
+        nextNudge(
+            after: date,
+            interval: interval,
+            schedule: .everyNight(startSeconds: startSeconds, bedSeconds: bedSeconds)
+        )
+    }
+
+    func nextNudge(
+        after date: Date,
+        interval: TimeInterval,
+        schedule: WeeklyBedtimeSchedule
+    ) -> ScheduledNudge? {
+        let safeInterval = max(interval, 1)
+        let candidateWindows = windows(around: date, schedule: schedule)
+
+        if let activeWindow = candidateWindows.first(where: { $0.contains(date) }) {
+            let candidate = date.addingTimeInterval(safeInterval)
+            if candidate < activeWindow.end {
+                return ScheduledNudge(fireDate: candidate, window: activeWindow)
+            }
+        }
+
+        guard let futureWindow = candidateWindows.first(where: { $0.start > date }) else {
+            return nil
+        }
+
+        let delay = min(safeInterval, max(futureWindow.duration / 2, 1))
+        return ScheduledNudge(
+            fireDate: futureWindow.start.addingTimeInterval(delay),
+            window: futureWindow
+        )
+    }
+
+    static func intervalRange(frequencyMinutes: Double) -> ClosedRange<TimeInterval> {
+        let base = min(max(frequencyMinutes, 1), 30) * 60
+        return base...(base * 1.7)
+    }
+
+    private func windows(
+        around date: Date,
+        schedule: WeeklyBedtimeSchedule
+    ) -> [BedtimeWindow] {
+        let startOfReferenceDay = calendar.startOfDay(for: date)
+
+        return (-1...8).compactMap { dayOffset in
+            guard
+                let anchorDay = calendar.date(
+                    byAdding: .day,
+                    value: dayOffset,
+                    to: startOfReferenceDay
+                ),
+                let times = schedule.times(for: anchorDay, calendar: calendar),
+                let start = wallClockDate(seconds: times.start, on: anchorDay)
+            else {
+                return nil
+            }
+
+            let crossesMidnight = times.bed <= times.start
+            guard
+                let endDay = crossesMidnight
+                    ? calendar.date(byAdding: .day, value: 1, to: anchorDay)
+                    : anchorDay,
+                let end = wallClockDate(seconds: times.bed, on: endDay),
+                end > start
+            else {
+                return nil
+            }
+
+            return BedtimeWindow(start: start, end: end)
+        }
+        .sorted { $0.start < $1.start }
+    }
+
+    private func wallClockDate(seconds: Int, on day: Date) -> Date? {
+        let clamped = min(max(seconds, 0), AppSettings.secondsPerDay - 1)
+        let hour = clamped / 3_600
+        let minute = (clamped % 3_600) / 60
+        let second = clamped % 60
+
+        return calendar.date(
+            bySettingHour: hour,
+            minute: minute,
+            second: second,
+            of: day,
+            matchingPolicy: .nextTime,
+            repeatedTimePolicy: .first,
+            direction: .forward
+        )
+    }
+}
+
+@MainActor
+protocol VisualNotificationDelivering: AnyObject {
+    func deliverVisualNudge(count: Int, personality: ButlerPersonality?)
+    func clearVisualNudges()
+}
+
+struct ProgressiveState: Equatable, Sendable {
+    private(set) var base: ButlerPersonality
+    private(set) var current: ButlerPersonality
+    private(set) var nudgeCount = 0
+    private(set) var escalationThreshold: Int
+
+    init(base: ButlerPersonality, escalationThreshold: Int = 2) {
+        self.base = base
+        current = base
+        self.escalationThreshold = Self.clampThreshold(escalationThreshold)
+    }
+
+    mutating func reset(base: ButlerPersonality, escalationThreshold: Int) {
+        self.base = base
+        current = base
+        nudgeCount = 0
+        self.escalationThreshold = Self.clampThreshold(escalationThreshold)
+    }
+
+    mutating func recordNudge(progressive: Bool, nextThreshold: Int) {
+        guard progressive else {
+            current = base
+            nudgeCount = 0
+            return
+        }
+
+        nudgeCount += 1
+        guard nudgeCount >= escalationThreshold else { return }
+
+        current = current.escalated
+        nudgeCount = 0
+        escalationThreshold = Self.clampThreshold(nextThreshold)
+    }
+
+    private static func clampThreshold(_ value: Int) -> Int {
+        min(max(value, 2), 3)
+    }
+}
+
+@MainActor
+final class ButlerTimer: NSObject, ObservableObject {
+    @Published private(set) var nextNudge: Date?
+    @Published private(set) var nextPersonality: ButlerPersonality
+    @Published private(set) var lastEvent = "Schedule is active."
+
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "BeddyButler",
+        category: "scheduler"
+    )
+    private let settings: AppSettings
+    private let audioPlayer: any AudioPlaying
+    private let now: () -> Date
+    private let intervalProvider: (ClosedRange<TimeInterval>) -> TimeInterval
+    private let escalationProvider: () -> Int
+    private weak var visualNotifier: (any VisualNotificationDelivering)?
+
+    private var progression: ProgressiveState
+    private var progressionWindowStart: Date?
+    private(set) var timer: Timer?
+
+    var canSnooze: Bool {
+        guard !settings.isMuted(at: now()) else { return false }
+        return activeWindow(at: now()) != nil
+    }
+
+    var visualNudgePending: Bool { settings.pendingVisualNudgeCount > 0 }
+    var pendingVisualNudgeCount: Int { settings.pendingVisualNudgeCount }
+
+    init(
+        settings: AppSettings,
+        audioPlayer: any AudioPlaying,
+        now: @escaping () -> Date = Date.init,
+        intervalProvider: @escaping (ClosedRange<TimeInterval>) -> TimeInterval = {
+            Double.random(in: $0)
+        },
+        escalationProvider: @escaping () -> Int = {
+            Int.random(in: 2...3)
+        },
+        visualNotifier: (any VisualNotificationDelivering)? = nil
+    ) {
+        self.settings = settings
+        self.audioPlayer = audioPlayer
+        self.now = now
+        self.intervalProvider = intervalProvider
+        self.escalationProvider = escalationProvider
+        self.visualNotifier = visualNotifier
+        progression = ProgressiveState(
+            base: settings.personality,
+            escalationThreshold: escalationProvider()
+        )
+        nextPersonality = settings.personality
+        super.init()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(settingsDidChange),
+            name: .beddySettingsDidChange,
+            object: settings
+        )
+        recalculate()
+    }
+
+    func recalculate() {
+        timer?.invalidate()
+        timer = nil
+
+        let currentDate = now()
+        settings.clearExpiredMute(at: currentDate)
+        settings.clearExpiredTonightOverride(at: currentDate)
+
+        let calculator = ScheduleCalculator(calendar: .autoupdatingCurrent)
+        let schedule = weeklySchedule
+        let intervalRange = ScheduleCalculator.intervalRange(
+            frequencyMinutes: settings.frequencyMinutes
+        )
+        let interval = intervalProvider(intervalRange)
+
+        let nudge: ScheduledNudge?
+        if let mutedUntil = settings.mutedUntil,
+            mutedUntil > currentDate,
+            let resumeWindow = calculator.window(
+                containingOrAfter: mutedUntil,
+                schedule: schedule
+            ),
+            resumeWindow.contains(mutedUntil)
+        {
+            // A short snooze resumes at the promised time. A whole-night pause ends
+            // exactly at the window boundary and therefore schedules the next night.
+            nudge = ScheduledNudge(fireDate: mutedUntil, window: resumeWindow)
+        } else {
+            let schedulingDate = settings.mutedUntil.flatMap { $0 > currentDate ? $0 : nil } ?? currentDate
+            nudge = calculator.nextNudge(
+                after: schedulingDate,
+                interval: interval,
+                schedule: schedule
+            )
+        }
+
+        guard let nudge else {
+            nextNudge = nil
+            lastEvent = "No valid bedtime window is configured."
+            NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
+            return
+        }
+
+        let baseChanged = progression.base != settings.personality
+        let windowChanged = progressionWindowStart != nudge.window.start
+        if baseChanged || windowChanged || !settings.progressiveMode {
+            progression.reset(
+                base: settings.personality,
+                escalationThreshold: escalationProvider()
+            )
+            progressionWindowStart = nudge.window.start
+        }
+
+        nextPersonality = progression.current
+        nextNudge = nudge.fireDate
+
+        let nextTimer = Timer(
+            fireAt: nudge.fireDate,
+            interval: 0,
+            target: self,
+            selector: #selector(timerDidFire),
+            userInfo: nil,
+            repeats: false
+        )
+        nextTimer.tolerance = min(
+            30,
+            max(nudge.fireDate.timeIntervalSince(currentDate), 0) * 0.05
+        )
+        RunLoop.main.add(nextTimer, forMode: .common)
+        timer = nextTimer
+
+        logger.debug("Scheduled next nudge for \(nudge.fireDate, privacy: .public)")
+        NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
+    }
+
+    func snooze(minutes: Int = 30) {
+        let currentDate = now()
+        guard let window = activeWindow(at: currentDate) else {
+            lastEvent = "Snooze is available during your bedtime window."
+            NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
+            return
+        }
+
+        let requestedResume = currentDate.addingTimeInterval(TimeInterval(max(minutes, 1) * 60))
+        if requestedResume < window.end {
+            settings.mute(until: requestedResume)
+            lastEvent = "Snoozed until \(LocalizedScheduleText.time(requestedResume))."
+        } else {
+            settings.mute(until: window.end)
+            lastEvent = "Snooze reaches bedtime, so nudges are paused for tonight."
+        }
+    }
+
+    func muteForCurrentWindow() {
+        let currentDate = now()
+        let calculator = ScheduleCalculator(calendar: .autoupdatingCurrent)
+
+        guard
+            let window = calculator.window(
+                containingOrAfter: currentDate,
+                schedule: weeklySchedule
+            )
+        else {
+            lastEvent = "No bedtime window is available to mute."
+            return
+        }
+
+        settings.mute(until: window.end)
+        lastEvent = "Nudges are paused for this bedtime window."
+    }
+
+    func resumeNudges() {
+        settings.resumeNudges()
+        lastEvent = "Nudges resumed."
+    }
+
+    func previewSelectedNudge() {
+        previewNudge(settings.personality)
+    }
+
+    func previewNudge(_ personality: ButlerPersonality) {
+        var messages: [String] = []
+        if settings.nudgeDelivery.includesSound {
+            do {
+                let clip = try audioPlayer.play(personality, volume: settings.voiceVolume)
+                messages.append("Previewed \(clip.deletingPathExtension().lastPathComponent).")
+            } catch {
+                messages.append(error.localizedDescription)
+                logger.error("Preview failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        if settings.nudgeDelivery.includesVisual {
+            recordVisualNudge(personality: settings.nudgeDelivery.includesSound ? personality : nil)
+            messages.append("Visual badge preview is waiting in the menu bar.")
+        }
+        lastEvent = messages.joined(separator: " ")
+        NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
+    }
+
+    func acknowledgeVisualNudge() {
+        guard visualNudgePending else { return }
+        settings.clearVisualNudges()
+        visualNotifier?.clearVisualNudges()
+        lastEvent = "Visual nudge acknowledged."
+        NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
+    }
+
+    @objc private func settingsDidChange() {
+        recalculate()
+    }
+
+    @objc private func timerDidFire() {
+        let currentDate = now()
+        guard !settings.isMuted(at: currentDate) else {
+            recalculate()
+            return
+        }
+
+        deliverNudge()
+
+        progression.recordNudge(
+            progressive: settings.progressiveMode && settings.nudgeDelivery.includesSound,
+            nextThreshold: escalationProvider()
+        )
+        recalculate()
+    }
+
+    func deliverNudge() {
+        let personality = settings.progressiveMode ? progression.current : settings.personality
+        var messages: [String] = []
+
+        if settings.nudgeDelivery.includesSound {
+            do {
+                let clip = try audioPlayer.play(personality, volume: settings.voiceVolume)
+                messages.append(
+                    "\(personality.title) played \(clip.deletingPathExtension().lastPathComponent)."
+                )
+                logger.info("Played a \(personality.title, privacy: .public) nudge")
+            } catch {
+                messages.append(error.localizedDescription)
+                logger.error("Nudge playback failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        if settings.nudgeDelivery.includesVisual {
+            recordVisualNudge(personality: settings.nudgeDelivery.includesSound ? personality : nil)
+            messages.append("Visual bedtime badge is waiting in the menu bar.")
+        }
+
+        lastEvent = messages.joined(separator: " ")
+        NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
+    }
+
+    private func activeWindow(at date: Date) -> BedtimeWindow? {
+        let calculator = ScheduleCalculator(calendar: .autoupdatingCurrent)
+        guard
+            let window = calculator.window(
+                containingOrAfter: date,
+                schedule: weeklySchedule
+            ),
+            window.contains(date)
+        else {
+            return nil
+        }
+        return window
+    }
+
+    private var weeklySchedule: WeeklyBedtimeSchedule {
+        WeeklyBedtimeSchedule(
+            startSeconds: settings.startSeconds,
+            bedSeconds: settings.bedSeconds,
+            activeWeekdays: settings.activeWeekdays,
+            alternateScheduleEnabled: settings.alternateScheduleEnabled,
+            alternateWeekdays: settings.alternateScheduleWeekdays,
+            alternateStartSeconds: settings.alternateStartSeconds,
+            alternateBedSeconds: settings.alternateBedSeconds,
+            alternatePattern: settings.alternateSchedulePattern,
+            rotationAnchorDate: settings.rotationAnchorDate,
+            rotationPrimaryDays: settings.rotationPrimaryDays,
+            rotationAlternateDays: settings.rotationAlternateDays,
+            oneNightOverride: settings.tonightOverrideDate.map {
+                OneNightScheduleOverride(
+                    anchorDate: $0,
+                    startSeconds: settings.tonightOverrideStartSeconds,
+                    bedSeconds: settings.tonightOverrideBedSeconds
+                )
+            }
+        )
+    }
+
+    private func recordVisualNudge(personality: ButlerPersonality?) {
+        settings.recordVisualNudge(at: now())
+        if settings.notificationAlertsEnabled {
+            visualNotifier?.deliverVisualNudge(
+                count: settings.pendingVisualNudgeCount,
+                personality: personality
+            )
+        }
     }
 }

@@ -1,0 +1,25 @@
+Meet Beddy Butler, a playful little presence in your Mac's menu bar who helps you stop working and make your way to bed.
+
+Choose a bedtime window and let your Butler offer well timed encouragement throughout the evening. Start with a shy suggestion, ask for something more insistent, or enable Progressive mode and let the personality grow more determined as bedtime approaches.
+
+BUILT AROUND YOUR LIFE
+
+• Choose exactly which nights each schedule applies
+• Add a second schedule for weekends, religious observance, shared routines, or any other pattern
+• Use rotating cycles for shift work and changing rosters
+• Make a one night adjustment without disturbing your regular routine
+• Travel freely, with automatic time zone and daylight saving recalculation
+
+NUDGES YOU CAN NOTICE
+
+• Hear the original voiced Butler reminders
+• Use a persistent visual menu bar badge instead of sound
+• Combine sound and visual cues
+• Add optional silent Notification Centre alerts with Acknowledge, Snooze, and Pause actions
+• Adjust the voice volume independently
+
+SMALL, PRIVATE, AND DELIGHTFUL
+
+Beddy Butler lives quietly in the menu bar, uses no account, contains no advertising, and sends no analytics. Your schedule stays on your Mac.
+
+The original 2016 idea has been lovingly rebuilt for modern macOS with a native Swift 6 interface, system materials, dark mode, Reduced Motion, Reduced Transparency, Full Keyboard Access, and VoiceOver support.

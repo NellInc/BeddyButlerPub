@@ -1,0 +1,6 @@
+Data collection: None
+Tracking: None
+Accounts: None
+Advertising: None
+
+Beddy Butler stores schedule and preference data only in the app's local UserDefaults container. It does not transmit that data.

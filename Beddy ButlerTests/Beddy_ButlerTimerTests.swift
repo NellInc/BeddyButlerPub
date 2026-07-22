@@ -1,262 +1,535 @@
-//
-//  Beddy_ButlerTimerTests.swift
-//
-//
-//  Created by David Garces on 21/08/2015.
-//
-//
-
-import Cocoa
+import Foundation
 import XCTest
+
 @testable import Beddy_Butler
 
-class Beddy_ButlerTimerTests: XCTestCase {
+@MainActor
+private final class RecordingAudioPlayer: AudioPlaying {
+    private(set) var playCount = 0
 
-    var butlerTimer = ButlerTimer()
+    func play(_ personality: ButlerPersonality, volume: Double) throws -> URL {
+        playCount += 1
+        return URL(fileURLWithPath: "/tmp/\(personality.rawValue).mp3")
+    }
+}
 
-    let calendar = Calendar.current
-    var startOfDay: Date {
-        return calendar.startOfDay(for: Date())
+@MainActor
+private final class RecordingVisualNotifier: VisualNotificationDelivering {
+    private(set) var deliveries: [(count: Int, personality: ButlerPersonality?)] = []
+    private(set) var clearCount = 0
+
+    func deliverVisualNudge(count: Int, personality: ButlerPersonality?) {
+        deliveries.append((count, personality))
     }
 
-    override func setUp() {
-        super.setUp()
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+    func clearVisualNudges() {
+        clearCount += 1
+    }
+}
+
+final class BeddyButlerTimerTests: XCTestCase {
+    private func calendar(timeZone identifier: String = "Europe/London") -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        guard let timeZone = TimeZone(identifier: identifier) else {
+            fatalError("Missing test time zone \(identifier)")
+        }
+        calendar.timeZone = timeZone
+        return calendar
     }
 
-    override func tearDown() {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-        super.tearDown()
+    private func date(
+        _ year: Int,
+        _ month: Int,
+        _ day: Int,
+        _ hour: Int,
+        _ minute: Int = 0,
+        calendar: Calendar
+    ) -> Date {
+        guard
+            let result = calendar.date(
+                from: DateComponents(
+                    year: year,
+                    month: month,
+                    day: day,
+                    hour: hour,
+                    minute: minute
+                )
+            )
+        else {
+            fatalError("Could not create test date")
+        }
+        return result
     }
 
-    func testTimeZone(){
-        let currentLocalTime = Date()
+    func testSchedulesAfterFutureWindowBegins() throws {
+        let calendar = calendar()
+        let now = date(2026, 7, 21, 20, calendar: calendar)
+        let calculator = ScheduleCalculator(calendar: calendar)
 
-        let sourceTimeZone = TimeZone(abbreviation: "UTC")
-        let triggerTimeZone = TimeZone.current
+        let nudge = try XCTUnwrap(
+            calculator.nextNudge(
+                after: now,
+                interval: 10 * 60,
+                startSeconds: 21 * 3_600 + 30 * 60,
+                bedSeconds: 23 * 3_600
+            ))
 
-        let sourceGTMOffset = sourceTimeZone?.secondsFromGMT(for: currentLocalTime)
-        let triggerGTMOffset = triggerTimeZone.secondsFromGMT(for: currentLocalTime)
-
-        let interval = triggerGTMOffset - sourceGTMOffset!
-
-        let finalDate = Date(timeInterval: TimeInterval.init(interval), since: currentLocalTime)
-
-        Swift.print("Current local time: \(currentLocalTime)")
-        Swift.print("Source Time Zone (GTM): \(sourceTimeZone)")
-        Swift.print("Trigger Time Zone (System Time Zone): \(triggerTimeZone)")
-        Swift.print("Source GTM Offset: \(sourceGTMOffset)")
-        Swift.print("Trigger GTM Offset: \(triggerGTMOffset)")
-        Swift.print("Interval (Source - Trigger Offsets): \(interval)")
-        Swift.print("Final Date (Current + interval): \(finalDate)")
+        XCTAssertEqual(
+            calendar.dateComponents([.day, .hour, .minute], from: nudge.fireDate),
+            DateComponents(day: 21, hour: 21, minute: 40)
+        )
     }
 
-    func testDate() {
+    func testSchedulesFromNowInsideWindow() throws {
+        let calendar = calendar()
+        let now = date(2026, 7, 21, 22, calendar: calendar)
+        let calculator = ScheduleCalculator(calendar: calendar)
 
-        let localTimeZone = TimeZone.current
-        let secondsFromGTM = TimeInterval.init(localTimeZone.secondsFromGMT())
-        let resultDate = Date(timeInterval: secondsFromGTM, since: Date())
+        let nudge = try XCTUnwrap(
+            calculator.nextNudge(
+                after: now,
+                interval: 10 * 60,
+                startSeconds: 21 * 3_600 + 30 * 60,
+                bedSeconds: 23 * 3_600
+            ))
 
-        Swift.print("Original: \(Date()), New: \(resultDate)")
+        XCTAssertEqual(nudge.fireDate, now.addingTimeInterval(10 * 60))
     }
 
-    func testInterval() {
-        let theDate = Date()
-        NSLog("Interval: \(theDate)")
-        XCTAssertTrue(theDate.timeIntervalSince1970 > 1, "test")
+    func testPastWindowMovesToTomorrow() throws {
+        let calendar = calendar()
+        let now = date(2026, 7, 21, 23, 10, calendar: calendar)
+        let calculator = ScheduleCalculator(calendar: calendar)
+
+        let nudge = try XCTUnwrap(
+            calculator.nextNudge(
+                after: now,
+                interval: 10 * 60,
+                startSeconds: 21 * 3_600 + 30 * 60,
+                bedSeconds: 23 * 3_600
+            ))
+
+        XCTAssertEqual(
+            calendar.dateComponents([.day, .hour, .minute], from: nudge.fireDate),
+            DateComponents(day: 22, hour: 21, minute: 40)
+        )
     }
 
-    func testStartDateInitialises() {
-        let theDate = butlerTimer.startDate
-        NSLog("Now: \(startOfDay)")
-        NSLog("The date: \(theDate)")
-        XCTAssertTrue(theDate.timeIntervalSince(startOfDay) > 0, "the start date should be around now")
+    func testCrossMidnightWindowContainsEarlyMorning() throws {
+        let calendar = calendar()
+        let now = date(2026, 7, 22, 0, 30, calendar: calendar)
+        let calculator = ScheduleCalculator(calendar: calendar)
+
+        let nudge = try XCTUnwrap(
+            calculator.nextNudge(
+                after: now,
+                interval: 10 * 60,
+                startSeconds: 22 * 3_600,
+                bedSeconds: 1 * 3_600
+            ))
+
+        XCTAssertEqual(nudge.fireDate, now.addingTimeInterval(10 * 60))
+        XCTAssertTrue(nudge.window.contains(now))
     }
 
-    func testEndDateInitialises() {
-        let theDate = butlerTimer.bedDate
-        NSLog("Now: \(startOfDay)")
-        NSLog("The date: \(theDate)")
-        XCTAssertTrue(theDate.timeIntervalSince(startOfDay) > 0, "the start date should be around now")
-    }
+    func testWallClockScheduleFollowsSelectedTimeZone() throws {
+        for identifier in ["Europe/London", "America/Los_Angeles", "Asia/Tokyo"] {
+            let calendar = calendar(timeZone: identifier)
+            let now = date(2026, 7, 21, 20, calendar: calendar)
+            let calculator = ScheduleCalculator(calendar: calendar)
 
-    func testRandomIntervalGeneratesCorrectValues() {
-        // "randomInterval should generate values between 300 and 1200"
-        for x in 0...20 {
-            let result = butlerTimer.randomInterval
-            NSLog("Randomly generated number \(x): \(result)")
-            XCTAssertTrue((result > 300) && (result < 1200) , "randomInterval should generate values between 300 and 1200")
+            let nudge = try XCTUnwrap(
+                calculator.nextNudge(
+                    after: now,
+                    interval: 10 * 60,
+                    startSeconds: 21 * 3_600 + 30 * 60,
+                    bedSeconds: 23 * 3_600
+                ))
+
+            XCTAssertEqual(calendar.component(.hour, from: nudge.fireDate), 21, identifier)
+            XCTAssertEqual(calendar.component(.minute, from: nudge.fireDate), 40, identifier)
         }
     }
 
-    func testRandomTestIntervalGeneratesCorrectValues() {
-        // "randomInterval should generate values between 300 and 1200"
-        for x in 0...20 {
-            let result = butlerTimer.testInteval
-            NSLog("Randomly generated number \(x): \(result)")
-            XCTAssertTrue((result > 0) && (result < 100) , "random testInterval should generate values between 0 and 100")
+    func testSpringDSTGapResolvesToAValidFutureTime() throws {
+        let calendar = calendar()
+        let now = date(2026, 3, 29, 0, 30, calendar: calendar)
+        let calculator = ScheduleCalculator(calendar: calendar)
+
+        let nudge = try XCTUnwrap(
+            calculator.nextNudge(
+                after: now,
+                interval: 10 * 60,
+                startSeconds: 1 * 3_600 + 30 * 60,
+                bedSeconds: 3 * 3_600
+            ))
+
+        XCTAssertGreaterThan(nudge.fireDate, now)
+        XCTAssertTrue((2...3).contains(calendar.component(.hour, from: nudge.fireDate)))
+    }
+
+    func testRandomIntervalRangeUsesConfiguredBaseAndSeventyPercentJitter() {
+        let range = ScheduleCalculator.intervalRange(frequencyMinutes: 10)
+
+        XCTAssertEqual(range.lowerBound, 600)
+        XCTAssertEqual(range.upperBound, 1_020)
+    }
+
+    func testInactiveNightsAreSkipped() throws {
+        let calendar = calendar()
+        let tuesday = date(2026, 7, 21, 20, calendar: calendar)
+        let schedule = WeeklyBedtimeSchedule(
+            startSeconds: 21 * 3_600 + 30 * 60,
+            bedSeconds: 23 * 3_600,
+            activeWeekdays: [5],
+            alternateScheduleEnabled: false,
+            alternateWeekdays: [],
+            alternateStartSeconds: 0,
+            alternateBedSeconds: 0
+        )
+
+        let nudge = try XCTUnwrap(
+            ScheduleCalculator(calendar: calendar).nextNudge(
+                after: tuesday,
+                interval: 10 * 60,
+                schedule: schedule
+            )
+        )
+
+        XCTAssertEqual(
+            calendar.dateComponents([.weekday, .hour, .minute], from: nudge.fireDate),
+            DateComponents(hour: 21, minute: 40, weekday: 5)
+        )
+    }
+
+    func testSelectedSundayUsesAlternateSchedule() throws {
+        let calendar = calendar()
+        let sunday = date(2026, 7, 26, 22, calendar: calendar)
+        let schedule = WeeklyBedtimeSchedule(
+            startSeconds: 21 * 3_600,
+            bedSeconds: 23 * 3_600,
+            activeWeekdays: Set(1...7),
+            alternateScheduleEnabled: true,
+            alternateWeekdays: [1],
+            alternateStartSeconds: 23 * 3_600,
+            alternateBedSeconds: 2 * 3_600
+        )
+
+        let nudge = try XCTUnwrap(
+            ScheduleCalculator(calendar: calendar).nextNudge(
+                after: sunday,
+                interval: 10 * 60,
+                schedule: schedule
+            )
+        )
+
+        XCTAssertEqual(
+            calendar.dateComponents([.day, .hour, .minute], from: nudge.fireDate),
+            DateComponents(day: 26, hour: 23, minute: 10)
+        )
+    }
+
+    func testUnselectedFridayKeepsPrimarySchedule() throws {
+        let calendar = calendar()
+        let friday = date(2026, 7, 24, 20, calendar: calendar)
+        let schedule = WeeklyBedtimeSchedule(
+            startSeconds: 21 * 3_600,
+            bedSeconds: 23 * 3_600,
+            activeWeekdays: Set(1...7),
+            alternateScheduleEnabled: true,
+            alternateWeekdays: [1],
+            alternateStartSeconds: 23 * 3_600,
+            alternateBedSeconds: 2 * 3_600
+        )
+
+        let nudge = try XCTUnwrap(
+            ScheduleCalculator(calendar: calendar).nextNudge(
+                after: friday,
+                interval: 10 * 60,
+                schedule: schedule
+            )
+        )
+
+        XCTAssertEqual(
+            calendar.dateComponents([.day, .hour, .minute], from: nudge.fireDate),
+            DateComponents(day: 24, hour: 21, minute: 10)
+        )
+    }
+
+    func testRotatingCycleAlternatesAfterConfiguredPrimaryRun() {
+        let calendar = calendar()
+        let anchor = date(2026, 7, 20, 0, calendar: calendar)
+        let schedule = WeeklyBedtimeSchedule(
+            startSeconds: 21 * 3_600,
+            bedSeconds: 23 * 3_600,
+            activeWeekdays: Set(1...7),
+            alternateScheduleEnabled: true,
+            alternateWeekdays: [],
+            alternateStartSeconds: 23 * 3_600,
+            alternateBedSeconds: 2 * 3_600,
+            alternatePattern: .rotatingCycle,
+            rotationAnchorDate: anchor,
+            rotationPrimaryDays: 4,
+            rotationAlternateDays: 4
+        )
+
+        XCTAssertFalse(
+            schedule.usesAlternateSchedule(
+                on: date(2026, 7, 23, 12, calendar: calendar),
+                calendar: calendar
+            )
+        )
+        XCTAssertTrue(
+            schedule.usesAlternateSchedule(
+                on: date(2026, 7, 24, 12, calendar: calendar),
+                calendar: calendar
+            )
+        )
+        XCTAssertFalse(
+            schedule.usesAlternateSchedule(
+                on: date(2026, 7, 28, 12, calendar: calendar),
+                calendar: calendar
+            )
+        )
+    }
+
+    func testRotatingCycleRepeatsCorrectlyBeforeAnchor() {
+        let calendar = calendar()
+        let anchor = date(2026, 7, 20, 0, calendar: calendar)
+        let schedule = WeeklyBedtimeSchedule(
+            startSeconds: 21 * 3_600,
+            bedSeconds: 23 * 3_600,
+            activeWeekdays: Set(1...7),
+            alternateScheduleEnabled: true,
+            alternateWeekdays: [],
+            alternateStartSeconds: 23 * 3_600,
+            alternateBedSeconds: 2 * 3_600,
+            alternatePattern: .rotatingCycle,
+            rotationAnchorDate: anchor,
+            rotationPrimaryDays: 2,
+            rotationAlternateDays: 2
+        )
+
+        XCTAssertTrue(
+            schedule.usesAlternateSchedule(
+                on: date(2026, 7, 19, 12, calendar: calendar),
+                calendar: calendar
+            )
+        )
+        XCTAssertFalse(
+            schedule.usesAlternateSchedule(
+                on: date(2026, 7, 17, 12, calendar: calendar),
+                calendar: calendar
+            )
+        )
+    }
+
+    func testOneNightOverrideTakesPriorityOnAnInactiveNight() throws {
+        let calendar = calendar()
+        let tuesday = date(2026, 7, 21, 20, calendar: calendar)
+        let schedule = WeeklyBedtimeSchedule(
+            startSeconds: 21 * 3_600,
+            bedSeconds: 23 * 3_600,
+            activeWeekdays: [],
+            alternateScheduleEnabled: false,
+            alternateWeekdays: [],
+            alternateStartSeconds: 0,
+            alternateBedSeconds: 0,
+            oneNightOverride: OneNightScheduleOverride(
+                anchorDate: tuesday,
+                startSeconds: 22 * 3_600,
+                bedSeconds: 1 * 3_600
+            )
+        )
+
+        let nudge = try XCTUnwrap(
+            ScheduleCalculator(calendar: calendar).nextNudge(
+                after: tuesday,
+                interval: 10 * 60,
+                schedule: schedule
+            )
+        )
+
+        XCTAssertEqual(
+            calendar.dateComponents([.day, .hour, .minute], from: nudge.fireDate),
+            DateComponents(day: 21, hour: 22, minute: 10)
+        )
+    }
+
+    func testProgressiveModeEscalatesAndResets() {
+        var state = ProgressiveState(base: .shy, escalationThreshold: 2)
+
+        state.recordNudge(progressive: true, nextThreshold: 3)
+        XCTAssertEqual(state.current, .shy)
+        state.recordNudge(progressive: true, nextThreshold: 3)
+        XCTAssertEqual(state.current, .insistent)
+        state.recordNudge(progressive: true, nextThreshold: 2)
+        state.recordNudge(progressive: true, nextThreshold: 2)
+        state.recordNudge(progressive: true, nextThreshold: 2)
+        XCTAssertEqual(state.current, .zombie)
+
+        state.reset(base: .shy, escalationThreshold: 2)
+        XCTAssertEqual(state.current, .shy)
+        XCTAssertEqual(state.nudgeCount, 0)
+    }
+
+    @MainActor
+    func testVisualDeliveryUsesPersistentBadgeWithoutPlayingAudio() throws {
+        let suiteName = "BeddyButlerVisualTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let settings = AppSettings(defaults: defaults)
+        settings.updateNudgeDelivery(.visual)
+        let audioPlayer = RecordingAudioPlayer()
+        settings.updateNotificationAlertsEnabled(true)
+        let notifier = RecordingVisualNotifier()
+        let scheduler = ButlerTimer(
+            settings: settings,
+            audioPlayer: audioPlayer,
+            visualNotifier: notifier
+        )
+        defer {
+            scheduler.timer?.invalidate()
+            defaults.removePersistentDomain(forName: suiteName)
         }
+
+        scheduler.deliverNudge()
+
+        XCTAssertTrue(scheduler.visualNudgePending)
+        XCTAssertEqual(scheduler.pendingVisualNudgeCount, 1)
+        XCTAssertEqual(audioPlayer.playCount, 0)
+        XCTAssertEqual(notifier.deliveries.count, 1)
+        XCTAssertEqual(notifier.deliveries.first?.count, 1)
+        XCTAssertNil(notifier.deliveries.first?.personality)
+        XCTAssertTrue(scheduler.lastEvent.contains("Visual bedtime badge"))
+
+        scheduler.acknowledgeVisualNudge()
+        XCTAssertFalse(scheduler.visualNudgePending)
+        XCTAssertEqual(notifier.clearCount, 1)
+        XCTAssertEqual(scheduler.lastEvent, "Visual nudge acknowledged.")
     }
 
-    /// Butler timer should update start time after user updates start time
-    func testUpdateStartTime() {
-        // Initially change the user setting so that it's different that what we will use for testing
-        UserDefaults.standard.setValue(50000, forKey: UserDefaultKeys.startTimeValue.rawValue)
-        let newButlerTimer = ButlerTimer()
-        // read the current value from ButlerTimer
-        let currentStartDate = newButlerTimer.startDate
-        // emulate a new value set by the user
-        UserDefaults.standard.setValue(65000, forKey: UserDefaultKeys.startTimeValue.rawValue)
-        //TO DO: do we need to send a notification for start slider changed?
-        //NotificationCenter.default.postNotificationName(NotificationKeys.startSliderChanged.rawValue, object: StartSliderView())
-        NSLog("previous date: \(currentStartDate) new date: \(newButlerTimer.startDate)")
-        // Assert
-        XCTAssertNotEqual(currentStartDate, self.butlerTimer.startDate, "Butler timer should update start time after user updates start time")
-
-
-    }
-
-    /// Butler timer should update end time after user updates end time
-    func testUpdateEndTime() {
-        // Initially change the user setting so that it's different that what we will use for testing
-        UserDefaults.standard.setValue(67000, forKey: UserDefaultKeys.bedTimeValue.rawValue)
-        let newButlerTimer = ButlerTimer()
-        // read the current value from ButlerTimer
-        let currentEndDate = newButlerTimer.bedDate
-        // emulate a new value set by the user
-        UserDefaults.standard.setValue(72000, forKey: UserDefaultKeys.bedTimeValue.rawValue)
-        //TO DO: do we need to send a notification for end slider changed?
-        //NotificationCenter.default.postNotificationName(NotificationKeys.endSliderChanged.rawValue, object: StartSliderView())
-        NSLog("previous date: \(currentEndDate) new date: \(newButlerTimer.bedDate)")
-        // Assert
-        XCTAssertNotEqual(currentEndDate, self.butlerTimer.bedDate, "Butler timer should update end time after user updates end time")
-
-
-    }
-
-    func testTimerCalculates() {
-        //Test 1: first set the user values for the test. Check the current time, run the app and change preferences so that you set the start timer about one hour AFTER now, and the end timer about two or three hours AFTER now.
-
-        //Test 2: Check the current time, run the app and change preferences so that you set the start timer about one hour BEFORE now, and the end timer about one or two hours AFTER now.
-
-        //Test 3: Check the current time, run the app and change preferences so that you set the start timer about two hours BEFORE now, and the end timer about one hours BEFORE now.
-
-        let theButlerTimer = ButlerTimer()
-
-        //Make a date before the current start date
-        let calendar = Calendar.current
-        _ = calendar.startOfDay(for: Date())
-
-        let currentDate = Date()
-
-        theButlerTimer.calculateNewTimer()
-
-        let dateAfterInterval = theButlerTimer.timer?.fireDate
-        NSLog("Timer interval: \(theButlerTimer.timer!.fireDate.timeIntervalSince(currentDate))")
-        NSLog("Simulated current date: \(currentDate)")
-        NSLog("date after Inverval: \(dateAfterInterval)")
-        NSLog("start date: \(theButlerTimer.startDate)")
-        XCTAssertTrue(dateAfterInterval! > theButlerTimer.startDate, "When calculating timer before startDate, timer should execute after startDate")
-
-        if theButlerTimer.bedDate > currentDate {
-            XCTAssertTrue(theButlerTimer.bedDate > dateAfterInterval!, "When calculating timer before endDate, timer should execute before endDate")
-        } else
-        {
-            XCTAssertTrue(dateAfterInterval! > theButlerTimer.bedDate, "When calculating timer after startDate, timer should execute after today's bedDate")
-            var components = DateComponents()
-            components.day = 1
-            let tomorrowsStartDate = calendar.date(byAdding: components, to: theButlerTimer.startDate)
-            let tomorrowsEndDate = calendar.date(byAdding: components, to: theButlerTimer.bedDate)
-            XCTAssertTrue(dateAfterInterval! > tomorrowsStartDate!, "When calculating timer after startDate, timer should execute after startDate of next day and before enddate of next day")
-            XCTAssertTrue(tomorrowsEndDate! > dateAfterInterval!, "When calculating timer after startDate, timer should execute after startDate of next day and before enddate of next day")
-        }
-    }
-
-    func testTimer1Initialises() {
-        NSLog("The timer 1 is: \(butlerTimer.timer)")
-        XCTAssertTrue(butlerTimer.timer!.timeInterval > 0, "Timer1 should be initialized")
-    }
-
-    func testButlerText() {
-        //Create file manager instance
-        let fileManager = FileManager()
-
-        let URLs = fileManager.urls(for: FileManager.SearchPathDirectory.documentDirectory, in: FileManager.SearchPathDomainMask.userDomainMask)
-
-
-        let documentURL = URLs[0]
-        let fileURL = documentURL.appendingPathComponent("textFile.txt")
-
-        // NSApplication.ur
-
-        let data = "hola 2".data(using: .utf8)
-
-        //let data = try NSPropertyListSerialization.dataWithPropertyList(plistDictionary, format: NSPropertyListFormat.XMLFormat_v1_0, options: NSPropertyListWriteOptions.init())
-        XCTAssert(data!.count > 0)
-        fileManager.createFile(atPath: fileURL.path, contents: data, attributes: nil)
-
-    }
-
-    func testButlerActive() {
-        // Check if main app is already running; if yes, do nothing and terminate helper app
-        var isAlreadyRunning = false
-        var isActive = false
-
-        let running = NSWorkspace.shared.runningApplications
-
-        for app in running {
-            if app.bundleIdentifier == "com.nellwatson.Beddy-Butler" {
-                isAlreadyRunning = true
-                isActive = NSApp.isActive
-            }
-
+    @MainActor
+    func testCombinedDeliveryPlaysAudioAndKeepsVisualBadge() throws {
+        let suiteName = "BeddyButlerBothTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let settings = AppSettings(defaults: defaults)
+        settings.updateNudgeDelivery(.both)
+        let audioPlayer = RecordingAudioPlayer()
+        let scheduler = ButlerTimer(settings: settings, audioPlayer: audioPlayer)
+        defer {
+            scheduler.timer?.invalidate()
+            defaults.removePersistentDomain(forName: suiteName)
         }
 
-        XCTAssert(isActive)
-        XCTAssert(isAlreadyRunning)
+        scheduler.deliverNudge()
+        scheduler.deliverNudge()
 
+        XCTAssertEqual(audioPlayer.playCount, 2)
+        XCTAssertTrue(scheduler.visualNudgePending)
+        XCTAssertEqual(scheduler.pendingVisualNudgeCount, 2)
+        XCTAssertTrue(scheduler.lastEvent.contains("Shy played"))
+        XCTAssertTrue(scheduler.lastEvent.contains("Visual bedtime badge"))
     }
 
-    //TODO: Remove log file and logging functionality -
-    func testWriteLogInternal(){
+    @MainActor
+    func testSnoozeResumesAtPromisedTimeInsideWindow() throws {
+        let suiteName = "BeddyButlerSnoozeTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let settings = AppSettings(defaults: defaults)
+        settings.updateStartSeconds(21 * 3_600)
+        settings.updateBedSeconds(23 * 3_600)
+        settings.updateFrequencyMinutes(10)
 
-        let message = "Hi"
-
-        //Create file manager instance
-        let fileManager = FileManager()
-
-        let path = NSString(string: Bundle.main.bundlePath).deletingLastPathComponent
-        let reviewedPath = NSString(string: path).deletingLastPathComponent
-        let reviewedPath2 = NSString(string: reviewedPath).deletingLastPathComponent
-        let reviewedPath3 = NSString(string: reviewedPath2).deletingLastPathComponent
-        let reviewedPath4 = NSString(string: reviewedPath3).appendingPathComponent("Resources")
-
-        let newURL = NSURL(string: reviewedPath4)
-
-        let fileURL = newURL!.appendingPathComponent("BeddyButlerLog.txt")
-
-        let data = message.data(using: .utf8)
-
-        XCTAssertNotNil(fileURL)
-        guard let fileURL else { return }
-        //if !fileManager.fileExistsAtPath(fileURL) {
-        do {
-            if !fileManager.fileExists(atPath: fileURL.path) {
-
-                if !fileManager.createFile(atPath: fileURL.path, contents: data , attributes: nil) {
-                    NSLog("File not created: \(fileURL.absoluteString)")
-                }
-            }
-
-            let handle: FileHandle = try FileHandle(forWritingTo: fileURL)
-            handle.truncateFile(atOffset: handle.seekToEndOfFile())
-            handle.write(data!)
-            handle.closeFile()
-
-        }
-        catch {
-            NSLog("Error writing to file: \(error)")
+        let currentCalendar = Calendar.autoupdatingCurrent
+        let now = date(2026, 7, 21, 22, calendar: currentCalendar)
+        let scheduler = ButlerTimer(
+            settings: settings,
+            audioPlayer: AudioPlayer(),
+            now: { now },
+            intervalProvider: { $0.lowerBound },
+            escalationProvider: { 2 }
+        )
+        defer {
+            scheduler.timer?.invalidate()
+            defaults.removePersistentDomain(forName: suiteName)
         }
 
+        XCTAssertTrue(scheduler.canSnooze)
+        scheduler.snooze(minutes: 30)
+
+        XCTAssertEqual(settings.mutedUntil, now.addingTimeInterval(30 * 60))
+        XCTAssertEqual(scheduler.nextNudge, now.addingTimeInterval(30 * 60))
+        XCTAssertEqual(scheduler.timer?.tolerance, 30)
+        XCTAssertTrue(scheduler.lastEvent.hasPrefix("Snoozed until "))
+    }
+
+    @MainActor
+    func testSnoozeOutsideWindowDoesNotChangeMuteState() throws {
+        let suiteName = "BeddyButlerSnoozeTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let settings = AppSettings(defaults: defaults)
+        settings.updateStartSeconds(21 * 3_600)
+        settings.updateBedSeconds(23 * 3_600)
+
+        let currentCalendar = Calendar.autoupdatingCurrent
+        let now = date(2026, 7, 21, 12, calendar: currentCalendar)
+        let scheduler = ButlerTimer(
+            settings: settings,
+            audioPlayer: AudioPlayer(),
+            now: { now },
+            intervalProvider: { $0.lowerBound },
+            escalationProvider: { 2 }
+        )
+        defer {
+            scheduler.timer?.invalidate()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        XCTAssertFalse(scheduler.canSnooze)
+        scheduler.snooze()
+
+        XCTAssertNil(settings.mutedUntil)
+        XCTAssertEqual(scheduler.lastEvent, "Snooze is available during your bedtime window.")
+    }
+
+    @MainActor
+    func testSnoozeThatReachesBedtimePausesUntilTomorrow() throws {
+        let suiteName = "BeddyButlerSnoozeTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let settings = AppSettings(defaults: defaults)
+        settings.updateStartSeconds(21 * 3_600)
+        settings.updateBedSeconds(23 * 3_600)
+        settings.updateFrequencyMinutes(10)
+
+        let currentCalendar = Calendar.autoupdatingCurrent
+        let now = date(2026, 7, 21, 22, 50, calendar: currentCalendar)
+        let scheduler = ButlerTimer(
+            settings: settings,
+            audioPlayer: AudioPlayer(),
+            now: { now },
+            intervalProvider: { $0.lowerBound },
+            escalationProvider: { 2 }
+        )
+        defer {
+            scheduler.timer?.invalidate()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        scheduler.snooze(minutes: 30)
+
+        let mutedUntil = try XCTUnwrap(settings.mutedUntil)
+        XCTAssertEqual(
+            currentCalendar.dateComponents([.day, .hour, .minute], from: mutedUntil),
+            DateComponents(day: 21, hour: 23, minute: 0)
+        )
+        let nextNudge = try XCTUnwrap(scheduler.nextNudge)
+        XCTAssertEqual(
+            currentCalendar.dateComponents([.day, .hour, .minute], from: nextNudge),
+            DateComponents(day: 22, hour: 21, minute: 10)
+        )
+        XCTAssertEqual(scheduler.lastEvent, "Snooze reaches bedtime, so nudges are paused for tonight.")
     }
 }

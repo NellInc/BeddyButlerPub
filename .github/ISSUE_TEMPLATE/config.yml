@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Privacy notice
+    url: https://github.com/NellInc/beddybutlerpub/blob/master/PRIVACY.md
+    about: Review what the app stores and transmits before filing a report.

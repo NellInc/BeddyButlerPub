@@ -1,88 +1,175 @@
-//
-//  Beddy_ButlerTests.swift
-//  Beddy ButlerTests
-//
-//  Created by David Garces on 10/08/2015.
-//  Copyright (c) 2015 David Garces. All rights reserved.
-//
-
-import Cocoa
+import AppKit
+import Foundation
 import XCTest
+
 @testable import Beddy_Butler
 
-class Beddy_ButlerSliderTests: XCTestCase {
-    
-    var preferencesViewController: PreferencesViewController?
-    var doubleSliderHandler: DoubleSliderHandler? {
-        get {
-            return preferencesViewController?.doubleSliderHandler
+final class BeddyButlerWallClockTests: XCTestCase {
+    private var calendar: Calendar {
+        var result = Calendar(identifier: .gregorian)
+        result.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return result
+    }
+
+    func testWallClockRoundTrip() {
+        let expected = 22 * 3_600 + 45 * 60 + 12
+        let date = WallClockTime.date(
+            for: expected,
+            relativeTo: Date(timeIntervalSince1970: 1_700_000_000),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(WallClockTime.seconds(from: date, calendar: calendar), expected)
+    }
+
+    func testWallClockInputIsClampedToOneDay() {
+        let date = WallClockTime.date(
+            for: 100_000,
+            relativeTo: Date(timeIntervalSince1970: 1_700_000_000),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(WallClockTime.seconds(from: date, calendar: calendar), 86_399)
+    }
+
+    func testScheduleTimesRespectTwelveAndTwentyFourHourLocales() {
+        let date = Date(timeIntervalSince1970: 1_700_001_000)
+        let timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+
+        let twelveHourTime = LocalizedScheduleText.time(
+            date,
+            locale: Locale(identifier: "en_US"),
+            timeZone: timeZone
+        )
+        XCTAssertTrue(twelveHourTime.hasPrefix("10:30"))
+        XCTAssertTrue(twelveHourTime.hasSuffix("PM"))
+        XCTAssertEqual(
+            LocalizedScheduleText.time(
+                date,
+                locale: Locale(identifier: "en_GB"),
+                timeZone: timeZone
+            ),
+            "22:30"
+        )
+    }
+
+    func testExternalWebsiteAndFeedbackLinksUseSecureURLs() throws {
+        let website = try XCTUnwrap(ExternalLinks.website)
+        let feedback = try XCTUnwrap(ExternalLinks.feedback)
+
+        XCTAssertEqual(website.scheme, "https")
+        XCTAssertEqual(feedback.scheme, "https")
+        XCTAssertEqual(website.host, "www.beddybutler.com")
+        XCTAssertEqual(feedback.host, "github.com")
+    }
+
+    @MainActor
+    func testMenuBarIconIsAVisibleTemplateSymbol() throws {
+        let icon = try XCTUnwrap(MenuBarIcon.make())
+        let pendingIcon = try XCTUnwrap(MenuBarIcon.make(pendingVisualNudge: true))
+
+        XCTAssertTrue(icon.isTemplate)
+        XCTAssertTrue(pendingIcon.isTemplate)
+        XCTAssertGreaterThan(icon.size.width, 0)
+        XCTAssertGreaterThan(icon.size.height, 0)
+        XCTAssertNotNil(icon.tiffRepresentation)
+        XCTAssertNotNil(pendingIcon.tiffRepresentation)
+    }
+
+    @MainActor
+    func testPreferencesWindowHasAResizableModernLayout() async throws {
+        let suiteName = "BeddyButlerPreferencesTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let settings = AppSettings(defaults: defaults)
+        let audioPlayer = AudioPlayer()
+        let scheduler = ButlerTimer(
+            settings: settings,
+            audioPlayer: audioPlayer,
+            intervalProvider: { $0.lowerBound },
+            escalationProvider: { 2 }
+        )
+        let controller = PreferencesWindowController(
+            settings: settings,
+            scheduler: scheduler,
+            loginItemManager: LoginItemManager(),
+            notificationManager: LocalNotificationManager()
+        )
+        defer {
+            scheduler.timer?.invalidate()
+            controller.close()
+            defaults.removePersistentDomain(forName: suiteName)
         }
-        set {
-            preferencesViewController?.doubleSliderHandler = newValue
+
+        let window = try XCTUnwrap(controller.window)
+        let contentView = try XCTUnwrap(window.contentView)
+        contentView.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(window.styleMask.contains(.resizable))
+        XCTAssertTrue(window.styleMask.contains(.fullSizeContentView))
+        XCTAssertEqual(window.titleVisibility, .hidden)
+        XCTAssertTrue(window.titlebarAppearsTransparent)
+        XCTAssertTrue(window.backgroundColor.isEqual(NSColor.clear))
+        XCTAssertFalse(window.isRestorable)
+        XCTAssertGreaterThanOrEqual(window.minSize.width, 640)
+        XCTAssertGreaterThanOrEqual(window.minSize.height, 680)
+        XCTAssertGreaterThanOrEqual(contentView.bounds.width, 640)
+        XCTAssertGreaterThanOrEqual(contentView.bounds.height, 680)
+
+        if let snapshotPath = ProcessInfo.processInfo.environment["BEDDY_BUTLER_SNAPSHOT_PATH"] {
+            controller.showWindow(nil)
+            window.makeKeyAndOrderFront(nil)
+            try await Task.sleep(for: .milliseconds(500))
+            try capture(contentView: contentView, at: snapshotPath)
         }
-        
-    }
-    
-    override func setUp() {
-        super.setUp()
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-        let storyboard = NSStoryboard(name: NSStoryboard.Name(rawValue: "Main"), bundle: nil)
-        
-        preferencesViewController = storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier(rawValue: "Preferences Storyboard")) as? PreferencesViewController
-        let _ = preferencesViewController?.view
-    }
-    
-    override func tearDown() {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-        super.tearDown()
-        
-        doubleSliderHandler = nil
+
+        let completedPath = ProcessInfo.processInfo.environment[
+            "BEDDY_BUTLER_COMPLETED_SNAPSHOT_PATH"
+        ]
+        if let completedPath {
+            settings.completeOnboarding()
+            controller.showWindow(nil)
+            window.makeKeyAndOrderFront(nil)
+            try await Task.sleep(for: .milliseconds(500))
+            try capture(contentView: contentView, at: completedPath)
+        }
+
+        if let darkPath = ProcessInfo.processInfo.environment["BEDDY_BUTLER_DARK_SNAPSHOT_PATH"] {
+            settings.completeOnboarding()
+            window.appearance = NSAppearance(named: .darkAqua)
+            controller.showWindow(nil)
+            window.makeKeyAndOrderFront(nil)
+            try await Task.sleep(for: .milliseconds(500))
+            try capture(contentView: contentView, at: darkPath)
+            window.appearance = nil
+        }
+
+        if let minimumPath = ProcessInfo.processInfo.environment["BEDDY_BUTLER_MINIMUM_SNAPSHOT_PATH"] {
+            settings.completeOnboarding()
+            let topEdge = window.frame.maxY
+            let minimumOrigin = NSPoint(
+                x: window.frame.minX,
+                y: topEdge - window.minSize.height
+            )
+            window.setFrame(NSRect(origin: minimumOrigin, size: window.minSize), display: true)
+            controller.showWindow(nil)
+            window.makeKeyAndOrderFront(nil)
+            try await Task.sleep(for: .milliseconds(500))
+            try capture(contentView: contentView, at: minimumPath)
+        }
     }
 
-    func testBaseNotNil() {
-        XCTAssertNotNil(doubleSliderHandler)
-        XCTAssertNotNil(doubleSliderHandler?.handles[SliderKeys.StartHandler.rawValue])
+    @MainActor
+    private func capture(contentView: NSView, at path: String) throws {
+        contentView.layoutSubtreeIfNeeded()
+        contentView.displayIfNeeded()
+
+        let representation = try XCTUnwrap(
+            contentView.bitmapImageRepForCachingDisplay(in: contentView.bounds)
+        )
+        contentView.cacheDisplay(in: contentView.bounds, to: representation)
+        let data = try XCTUnwrap(representation.representation(using: .png, properties: [:]))
+        try data.write(to: URL(fileURLWithPath: path), options: .atomic)
     }
-
-    func testStartSliderSetsValue() {
-        doubleSliderHandler?.handles[SliderKeys.StartHandler.rawValue]?.curValue = 0.1
-        let value = doubleSliderHandler?.handles[SliderKeys.StartHandler.rawValue]?.curValue
-        XCTAssertNotNil(value)
-        guard let value else { return }
-        XCTAssertTrue( value > 0, "Start Slider can set value")
-    }
-    
-    func testBedSliderSetsValue() {
-        doubleSliderHandler?.handles[SliderKeys.BedHandler.rawValue]?.curValue = 0.5
-        let value = doubleSliderHandler?.handles[SliderKeys.BedHandler.rawValue]?.curValue
-        XCTAssertNotNil(value)
-        guard let value else { return }
-        XCTAssertTrue(value > 0, "Bed Slider can set value")
-    }
-    
-    func testStartSliderChanges2() {
-        doubleSliderHandler?.handles[SliderKeys.StartHandler.rawValue]?.curValue = 0.7
-        doubleSliderHandler?.handles[SliderKeys.BedHandler.rawValue]?.curValue = 0.9
-
-        let value = doubleSliderHandler?.handles[SliderKeys.StartHandler.rawValue]?.curValue
-        XCTAssertNotNil(value)
-        guard let value else { return }
-
-        XCTAssertTrue(value < 10, "start time updates to < than end time if we set end time < than start time")
-    }
-    
-    /// Actually possible only in UI Tests (restrictions to start or low value only happen during dragging
-    func testStartSliderChange3() {
-        doubleSliderHandler?.handles[SliderKeys.StartHandler.rawValue]?.curValue = 0.9
-        doubleSliderHandler?.handles[SliderKeys.BedHandler.rawValue]?.curValue = 0.7
-
-        let value = doubleSliderHandler?.handles[SliderKeys.BedHandler.rawValue]?.curValue
-        XCTAssertNotNil(value)
-        guard let value else { return }
-
-
-        Swift.print(value)
-        XCTAssertTrue(value == ( (0.9 - 0.7)/2 + 0.9 ), "start time updates to < than end time if we set end time < than start time")
-    }
-    
 }

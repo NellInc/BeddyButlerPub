@@ -1,126 +1,75 @@
-//
-//  LoginItems.swift
-//  Beddy Butler
-//
-//  Created by David Garces on 23/10/2015.
-//  Copyright © 2015 David Garces. All rights reserved.
-//
-
-import Foundation
-import Cocoa
+import Combine
 import ServiceManagement
 
-class LoginItems {
-    //MARK: Variables
-    let fileManager = FileManager()
-    let bundleIdentifier = Bundle.main.bundleIdentifier
+protocol LoginItemService: AnyObject {
+    var status: SMAppService.Status { get }
+    func register() throws
+    func unregister() throws
+}
 
-    //MARK: Computed Variables
+extension SMAppService: LoginItemService {}
 
-    private var plistPath: URL {
+enum LoginItemState: Equatable, Sendable {
+    case disabled
+    case enabled
+    case requiresApproval
+    case unavailable
 
-        //Create file manager instance
-        let URLs = fileManager.urls(for: FileManager.SearchPathDirectory.libraryDirectory, in: FileManager.SearchPathDomainMask.userDomainMask)
+    init(status: SMAppService.Status) {
+        switch status {
+        case .notRegistered:
+            self = .disabled
+        case .enabled:
+            self = .enabled
+        case .requiresApproval:
+            self = .requiresApproval
+        case .notFound:
+            self = .unavailable
+        @unknown default:
+            self = .unavailable
+        }
+    }
+}
 
-        // build file name
-        let fileName = bundleIdentifier! + ".plist"
+@MainActor
+final class LoginItemManager: ObservableObject {
+    @Published private(set) var state: LoginItemState
+    @Published private(set) var lastError: String?
 
-        let documentURL = URLs[0]
-        let reviewedURL = documentURL.appendingPathComponent("LaunchAgents")
-        let fileURL = reviewedURL.appendingPathComponent(fileName)
+    private let service: LoginItemService
 
-        return fileURL
-
+    init(service: LoginItemService = SMAppService.mainApp) {
+        self.service = service
+        state = LoginItemState(status: service.status)
     }
 
-    private var appExecutePath: String {
-        let bundlePath = Bundle.main.bundleURL
-        let appName = NSString(string: bundlePath.lastPathComponent).deletingPathExtension
-        return bundlePath.path + "/Contents/MacOS/" + appName
-
+    var isEnabled: Bool {
+        state == .enabled || state == .requiresApproval
     }
 
-    //MARK: Public login handling methods
+    func refresh() {
+        state = LoginItemState(status: service.status)
+    }
 
-    func enableLoginItem(enabled: Bool){
-        guard let bundleIdentifier = bundleIdentifier else { return }
-        if #available(macOS 13.0, *) {
-            print("enableLoginItem", bundleIdentifier, SMAppService.mainApp.status)
-            do {
-                if enabled {
-                    try SMAppService.mainApp.register()
-                } else {
-                    try SMAppService.mainApp.unregister()
+    func setEnabled(_ enabled: Bool) {
+        lastError = nil
+
+        do {
+            if enabled {
+                if service.status == .notRegistered {
+                    try service.register()
                 }
-            } catch {
-                print("Failed to update login item status: \(error.localizedDescription)")
-            }
-        } else {
-            // Fallback on earlier versions
-            SMLoginItemSetEnabled(bundleIdentifier as CFString, enabled)
-        }
-    }
-
-    //MARK: Alternative login methods
-
-    private func createPlistFile(data: Data) {
-        let theURL = plistPath
-        deletePlistFile()
-        fileManager.createFile(atPath: theURL.path, contents: data, attributes: nil)
-    }
-
-    private func deletePlistFile() {
-        do {
-            let theURL = plistPath
-            if fileManager.fileExists(atPath: theURL.path) {
-                try fileManager.removeItem(at: theURL)
+            } else if service.status != .notRegistered {
+                try service.unregister()
             }
         } catch {
-            let resultMessage = "Error while deleting the plist file"
-            NSLog(resultMessage)
+            lastError = error.localizedDescription
         }
+
+        refresh()
     }
 
-    private func deleteLoginItemV2() {
-        deletePlistFile()
+    func openSystemSettings() {
+        SMAppService.openSystemSettingsLoginItems()
     }
-
-
-    private func createLoginItemV2() {
-
-        // NSApplication.ur
-        let bundlePath = Bundle.main.bundleURL
-        //let appName = NSString(string: bundlePath.lastPathComponent!).stringByDeletingPathExtension
-
-        var plistDictionary: Dictionary<String,AnyObject> = Dictionary<String,AnyObject>()
-
-        // Create Key values
-        let label = bundleIdentifier
-        //let programArguments = ["/Applications/LaunchAtLoginExample.app/Contents/MacOS/LaunchAtLoginExample"]
-        let programArguments = bundlePath.path //+ "/Contents/MacOS/" + appName
-        let processType = "Interactive"
-        let runAtLoad = true
-        let keepAlive = true // This key specifies whether your daemon launches on-demand or must always be running. It is recommended that you design your daemon to be launched on-demand.
-
-        // Assign Key values to keys
-        plistDictionary["Label"] = label as AnyObject?
-        plistDictionary["ProgramArguments"] = programArguments as AnyObject?
-        plistDictionary["ProcessType"] = processType as AnyObject?
-        plistDictionary["RunAtLoad"] = runAtLoad as AnyObject?
-        plistDictionary["KeepAlive"] = keepAlive as AnyObject?
-
-        do {
-            let data = try PropertyListSerialization.data(fromPropertyList: plistDictionary,
-                                                          format: .xml,
-                                                          options: 0)
-
-            createPlistFile(data: data)
-
-        } catch {
-            let resultMessage = "Error while creating agent file"
-
-            NSLog(resultMessage)
-        }
-    }
-
 }

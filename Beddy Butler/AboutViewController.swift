@@ -1,35 +1,35 @@
-//
-//  AboutViewController.swift
-//  Beddy Butler
-//
-//  Created by David Garces on 08/10/2015.
-//  Copyright © 2015 David Garces. All rights reserved.
-//
+import AppKit
+import Foundation
 
-import Cocoa
-
-class AboutViewController: NSViewController {
-
-    @IBOutlet weak var versionTextField: NSTextField!
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        // Do view setup here.
-        versionTextField.stringValue = "Version \(versionInfo)"
+enum ApplicationMetadata {
+    static var displayName: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+            ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
+            ?? "Beddy Butler"
     }
 
-    var versionInfo: String {
-
-        let dictionary = Bundle.main.infoDictionary
-        if let version = dictionary!["CFBundleShortVersionString"] as? String {
-            if let build = dictionary!["CFBundleVersion"] as? String {
-                return "\(version) (Build \(build))"
-            } else {
-                return "\(version)"
-            }
-        } else {
-            return ""
-        }
+    static var versionDescription: String {
+        "Version \(shortVersion) (\(buildNumber))"
     }
 
+    static var shortVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+            ?? "Unknown"
+    }
+
+    static var buildNumber: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+            ?? "Unknown"
+    }
+
+    static var aboutOptions: [NSApplication.AboutPanelOptionKey: Any] {
+        [
+            .applicationName: displayName,
+            .applicationVersion: versionDescription,
+            .credits: NSAttributedString(
+                string:
+                    "A playful bedtime nudge from Nell Watson.\nRevived for modern macOS in 2026.\n\nCopyright © 2015-2026 Nell Watson Inc."
+            ),
+        ]
+    }
 }
