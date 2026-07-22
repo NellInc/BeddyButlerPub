@@ -667,13 +667,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
             button.imageScaling = .scaleProportionallyDown
             button.toolTip = "Beddy Butler"
             button.setAccessibilityLabel("Beddy Butler")
+            button.setAccessibilityHelp("Open the Tonight panel. Right-click for more commands.")
             button.target = self
             button.action = #selector(toggleStatusPanel)
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.sendAction(on: [.leftMouseUp])
+
+            let secondaryClick = NSClickGestureRecognizer(
+                target: self,
+                action: #selector(showStatusMenuFromSecondaryClick)
+            )
+            secondaryClick.buttonMask = 0x2
+            button.addGestureRecognizer(secondaryClick)
         }
 
         let menu = NSMenu(title: "Beddy Butler")
         menu.delegate = self
+
+        menu.addItem(makeItem("Open Tonight Panel", action: #selector(openTonightPanel)))
+        menu.addItem(.separator())
 
         let status = NSMenuItem(title: "Next nudge: calculating…", action: nil, keyEquivalent: "")
         status.isEnabled = false
@@ -725,15 +736,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
 
     @objc private func toggleStatusPanel(_ sender: Any?) {
         guard let button = statusItem?.button else { return }
-        if NSApp.currentEvent?.type == .rightMouseUp {
-            statusPopover.performClose(nil)
-            statusMenu?.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 4), in: button)
-        } else if statusPopover.isShown {
+        if statusPopover.isShown {
             statusPopover.performClose(nil)
         } else {
             refreshMenuState()
             showStatusPopover(relativeTo: button)
         }
+    }
+
+    @objc private func showStatusMenuFromSecondaryClick(_ recognizer: NSClickGestureRecognizer) {
+        guard recognizer.state == .ended, let button = statusItem?.button else { return }
+        statusPopover.performClose(nil)
+        showStatusMenu(relativeTo: button)
+    }
+
+    @objc private func openTonightPanel(_ sender: Any?) {
+        guard let button = statusItem?.button else { return }
+        refreshMenuState()
+        showStatusPopover(relativeTo: button)
     }
 
     func popoverDidShow(_ notification: Notification) {
@@ -742,7 +762,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
 
     private func showStatusPopover(relativeTo button: NSStatusBarButton) {
         statusPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        guard statusPopover.isShown else {
+            showStatusMenu(relativeTo: button)
+            return
+        }
         positionStatusPopoverClearOfScreenObstructions()
+    }
+
+    private func showStatusMenu(relativeTo button: NSStatusBarButton) {
+        refreshMenuState()
+        statusMenu?.popUp(
+            positioning: nil,
+            at: NSPoint(x: 0, y: button.bounds.height + 4),
+            in: button
+        )
     }
 
     private func positionStatusPopoverClearOfScreenObstructions() {
