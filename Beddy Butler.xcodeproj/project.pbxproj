@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		BBDD00000000000000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BBDD00000000000000000002 /* PrivacyInfo.xcprivacy */; };
+		BEEA00000000000000000001 /* ButlerRigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEEA00000000000000000002 /* ButlerRigView.swift */; };
+		BEEA00000000000000000003 /* Beddy_ButlerRigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEEA00000000000000000004 /* Beddy_ButlerRigTests.swift */; };
 		2D20F5B81B84CF3F00FE7EFC /* ButlerTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D20F5B71B84CF3F00FE7EFC /* ButlerTimer.swift */; };
 		2D30884B1B83878E0015E1A0 /* Betty_ButlerUserDefaultsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D30884A1B83878E0015E1A0 /* Betty_ButlerUserDefaultsTests.swift */; };
 		2D4B84851B87230F00735187 /* UserDefaultKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4B84841B87230F00735187 /* UserDefaultKeys.swift */; };
@@ -138,6 +140,8 @@
 
 /* Begin PBXFileReference section */
 		BBDD00000000000000000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		BEEA00000000000000000002 /* ButlerRigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButlerRigView.swift; sourceTree = "<group>"; };
+		BEEA00000000000000000004 /* Beddy_ButlerRigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerRigTests.swift; sourceTree = "<group>"; };
 		2D20F5B71B84CF3F00FE7EFC /* ButlerTimer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ButlerTimer.swift; sourceTree = "<group>"; };
 		2D30884A1B83878E0015E1A0 /* Betty_ButlerUserDefaultsTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Betty_ButlerUserDefaultsTests.swift; sourceTree = "<group>"; };
 		2D4B84841B87230F00735187 /* UserDefaultKeys.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UserDefaultKeys.swift; sourceTree = "<group>"; };
@@ -444,6 +448,7 @@
 		2DC7670E1B78D25F00866072 /* Beddy ButlerTests */ = {
 			isa = PBXGroup;
 			children = (
+				BEEA00000000000000000004 /* Beddy_ButlerRigTests.swift */,
 				2D5AD2181B87597A008953B1 /* Beddy_ButlerTimerTests.swift */,
 				2D30884A1B83878E0015E1A0 /* Betty_ButlerUserDefaultsTests.swift */,
 				2DC767111B78D25F00866072 /* Beddy_ButlerSliderTests.swift */,
@@ -465,6 +470,7 @@
 		2DC7671C1B78D38600866072 /* Controllers */ = {
 			isa = PBXGroup;
 			children = (
+				BEEA00000000000000000002 /* ButlerRigView.swift */,
 				2DC767001B78D25F00866072 /* PreferencesViewController.swift */,
 				2D6082C01BC669EB00FFF44C /* AboutViewController.swift */,
 			);
@@ -682,6 +688,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BEEA00000000000000000001 /* ButlerRigView.swift in Sources */,
 				2D4B84851B87230F00735187 /* UserDefaultKeys.swift in Sources */,
 				2D20F5B81B84CF3F00FE7EFC /* ButlerTimer.swift in Sources */,
 				2D9B85361B836944002795F8 /* AudioPlayer.swift in Sources */,
@@ -696,6 +703,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BEEA00000000000000000003 /* Beddy_ButlerRigTests.swift in Sources */,
 				2D5AD2191B87597A008953B1 /* Beddy_ButlerTimerTests.swift in Sources */,
 				2DC767121B78D25F00866072 /* Beddy_ButlerSliderTests.swift in Sources */,
 				2D9B85331B83678F002795F8 /* Beddy_ButlerAudioTests.swift in Sources */,

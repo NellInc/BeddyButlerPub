@@ -23,6 +23,12 @@ final class BeddyButlerAudioTests: XCTestCase {
         XCTAssertEqual(ButlerPersonality.zombie.title, "Zombie")
     }
 
+    func testSampleLabelsUseTheCorrectIndefiniteArticle() {
+        XCTAssertEqual(ButlerPersonality.shy.sampleLabel, "Hear a Shy Sample")
+        XCTAssertEqual(ButlerPersonality.insistent.sampleLabel, "Hear an Insistent Sample")
+        XCTAssertEqual(ButlerPersonality.zombie.sampleLabel, "Hear a Zombie Sample")
+    }
+
     func testClipSelectorUsesEveryClipBeforeRepeating() throws {
         let clips = [
             URL(fileURLWithPath: "/tmp/one.mp3"),

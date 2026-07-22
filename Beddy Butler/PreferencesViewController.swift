@@ -369,40 +369,29 @@ private struct AnimatedButlerArtwork: View {
 
     let personality: ButlerPersonality
     let presentation: Presentation
+    let viewportHeight: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isAtRestingPeak = false
+    @State private var isWithinViewport = true
 
     var body: some View {
         artwork
-            .id(personality.id)
-            .scaleEffect(
-                x: reduceMotion ? 1 : horizontalScale,
-                y: reduceMotion ? 1 : verticalScale,
-                anchor: .bottom
-            )
-            .rotationEffect(.degrees(reduceMotion ? 0 : rotation))
-            .offset(
-                x: reduceMotion ? 0 : horizontalOffset,
-                y: reduceMotion ? 0 : verticalOffset
-            )
             .shadow(color: accent.opacity(0.18), radius: 9, x: 0, y: 5)
-            .animation(
-                reduceMotion
-                    ? nil
-                    : .easeInOut(duration: animationDuration).repeatForever(autoreverses: true),
-                value: isAtRestingPeak
-            )
             .animation(
                 reduceMotion ? nil : .easeOut(duration: 0.24),
                 value: personality
             )
-            .onAppear {
-                guard !reduceMotion else { return }
-                isAtRestingPeak = true
-            }
-            .onChange(of: reduceMotion) { shouldReduceMotion in
-                isAtRestingPeak = !shouldReduceMotion
+            .background {
+                GeometryReader { proxy in
+                    let frame = proxy.frame(in: .named("beddy-preferences-scroll"))
+                    Color.clear
+                        .onAppear {
+                            updateVisibility(frame)
+                        }
+                        .onChange(of: frame) { updatedFrame in
+                            updateVisibility(updatedFrame)
+                        }
+                }
             }
             .accessibilityHidden(true)
     }
@@ -411,56 +400,32 @@ private struct AnimatedButlerArtwork: View {
     private var artwork: some View {
         switch presentation {
         case .header:
-            Image(personality.assetName)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFill()
-                .frame(width: 82, height: 78, alignment: .top)
-                .scaleEffect(1.42, anchor: .top)
-                .frame(width: 82, height: 78, alignment: .top)
-                .clipped()
-                .drawingGroup(opaque: false, colorMode: .linear)
+            ButlerRiggedView(
+                personality: personality,
+                motionEnabled: !reduceMotion && isWithinViewport,
+                isVisible: isWithinViewport,
+                contentMode: .upperBody,
+                intensity: 0.68
+            )
+            .frame(width: 82, height: 78)
         case .preview:
-            Image(personality.assetName)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .frame(width: 92, height: 112)
-                .drawingGroup(opaque: false, colorMode: .linear)
+            ButlerRiggedView(
+                personality: personality,
+                motionEnabled: !reduceMotion && isWithinViewport,
+                isVisible: isWithinViewport,
+                contentMode: .fit,
+                intensity: 1
+            )
+            .frame(width: 92, height: 112)
         }
     }
 
-    private var animationDuration: Double {
-        switch personality {
-        case .shy: 3.6
-        case .insistent: 3.1
-        case .zombie: 3.9
+    private func updateVisibility(_ frame: CGRect) {
+        guard viewportHeight > 0 else { return }
+        let isVisible = frame.maxY > -16 && frame.minY < viewportHeight + 16
+        if isVisible != isWithinViewport {
+            isWithinViewport = isVisible
         }
-    }
-
-    private var horizontalOffset: CGFloat {
-        let amplitude: CGFloat = personality == .zombie ? 1.1 : personality == .insistent ? 0.8 : 0.3
-        return isAtRestingPeak ? amplitude : -amplitude
-    }
-
-    private var verticalOffset: CGFloat {
-        let amplitude: CGFloat = personality == .zombie ? 1.4 : 1.1
-        return isAtRestingPeak ? -amplitude : amplitude
-    }
-
-    private var rotation: Double {
-        let amplitude = personality == .zombie ? 0.65 : personality == .insistent ? 0.35 : 0.22
-        return isAtRestingPeak ? amplitude : -amplitude
-    }
-
-    private var horizontalScale: CGFloat {
-        let amplitude: CGFloat = personality == .insistent ? 0.004 : 0.002
-        return isAtRestingPeak ? 1 + amplitude : 1 - amplitude
-    }
-
-    private var verticalScale: CGFloat {
-        let amplitude: CGFloat = personality == .zombie ? 0.009 : 0.007
-        return isAtRestingPeak ? 1 + amplitude : 1 - amplitude
     }
 
     private var accent: Color {
@@ -479,6 +444,7 @@ struct PreferencesView: View {
     @ObservedObject var notificationManager: LocalNotificationManager
 
     @State private var timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
+    @State private var scrollViewportHeight: CGFloat = 800
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -515,6 +481,18 @@ struct PreferencesView: View {
                         value: settings.nudgeDelivery
                     )
                 }
+                .coordinateSpace(name: "beddy-preferences-scroll")
+                .background {
+                    GeometryReader { viewport in
+                        Color.clear
+                            .onAppear {
+                                scrollViewportHeight = viewport.size.height
+                            }
+                            .onChange(of: viewport.size.height) { updatedHeight in
+                                scrollViewportHeight = updatedHeight
+                            }
+                    }
+                }
                 .onChange(of: settings.hasCompletedOnboarding) { completed in
                     if completed {
                         DispatchQueue.main.async {
@@ -534,7 +512,11 @@ struct PreferencesView: View {
 
     private var header: some View {
         HStack(spacing: 17) {
-            AnimatedButlerArtwork(personality: .shy, presentation: .header)
+            AnimatedButlerArtwork(
+                personality: .shy,
+                presentation: .header,
+                viewportHeight: scrollViewportHeight
+            )
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("YOUR EVENING, BEAUTIFULLY")
@@ -1036,7 +1018,8 @@ struct PreferencesView: View {
                     if settings.nudgeDelivery.includesSound {
                         AnimatedButlerArtwork(
                             personality: settings.personality,
-                            presentation: .preview
+                            presentation: .preview,
+                            viewportHeight: scrollViewportHeight
                         )
                     } else {
                         Image(systemName: "bell.badge.fill")
@@ -1272,7 +1255,7 @@ struct PreferencesView: View {
     private var previewLabel: String {
         switch settings.nudgeDelivery {
         case .sound:
-            "Hear a \(settings.personality.title) Sample"
+            settings.personality.sampleLabel
         case .visual:
             "Preview Visual Badge"
         case .both:
