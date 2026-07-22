@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
@@ -17,6 +18,27 @@ FONT_PATHS = [
     Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
 ]
 FONT = next(path for path in FONT_PATHS if path.exists())
+
+parser = argparse.ArgumentParser(
+    description="Create App Store marketing screenshots from verified native UI captures."
+)
+parser.add_argument(
+    "--preferences",
+    type=Path,
+    default=ROOT / "tmp" / "visual-qa" / "preferences.png",
+    help="Path to the captured Preferences window.",
+)
+parser.add_argument(
+    "--popover",
+    type=Path,
+    default=ROOT / "tmp" / "visual-qa" / "tonight-popover.png",
+    help="Path to the captured Tonight popover.",
+)
+args = parser.parse_args()
+
+for source in (args.preferences, args.popover):
+    if not source.is_file():
+        parser.error(f"Native UI capture not found: {source}")
 
 
 def font(size: int, index: int = 0) -> ImageFont.FreeTypeFont:
@@ -80,9 +102,13 @@ def add_text(canvas: Image.Image, kicker: str, headline: str, body: str, y: int 
         draw.text((180, y), line, font=body_font, fill=(181, 198, 219))
 
 
-def add_window(canvas: Image.Image, x: int, y: int, height: int) -> None:
-    source = Image.open(ROOT / "tmp/custom-icons/app-icon-refresh/signed-preferences-proof.png").convert("RGBA")
-    source.thumbnail((1500, height), Image.Resampling.LANCZOS)
+def add_window(canvas: Image.Image, source_path: Path, x: int, y: int, height: int) -> None:
+    source = Image.open(source_path).convert("RGBA")
+    scale = min(1500 / source.width, height / source.height)
+    source = source.resize(
+        (round(source.width * scale), round(source.height * scale)),
+        Image.Resampling.LANCZOS,
+    )
     shadow = Image.new("RGBA", canvas.size)
     shadow.alpha_composite(source, (x, y + 25))
     shadow = shadow.filter(ImageFilter.GaussianBlur(45))
@@ -101,12 +127,12 @@ def save(canvas: Image.Image, name: str) -> None:
 first = background((71, 154, 245))
 add_text(
     first,
-    "Meet Beddy Butler",
+    "Free on the Mac App Store",
     "A gentler way to end the day.",
-    "Flexible bedtime reminders, living quietly in your Mac's menu bar.",
+    "Lovingly revamped bedtime reminders, living quietly in your Mac's menu bar.",
     285,
 )
-add_window(first, 1500, 40, 1720)
+add_window(first, args.popover, 1490, 205, 1380)
 save(first, "01-gentler-evenings.png")
 
 second = background((121, 97, 222))
@@ -117,7 +143,7 @@ add_text(
     "Begin with a polite hint. Let Beddy become more persuasive if the evening keeps going.",
     245,
 )
-add_window(second, 1510, 60, 1660)
+add_window(second, args.preferences, 1510, 60, 1660)
 characters = []
 for name in ("shy", "insistent", "zombie"):
     character = Image.open(ROOT / f"Website/assets/{name}.webp").convert("RGBA")
@@ -152,5 +178,5 @@ draw.rounded_rectangle((180, 1400, 460, 1468), radius=34, fill=(230, 164, 103, 2
 draw.text((223, 1417), "OBSERVANCE", font=font(23), fill=(255, 244, 231))
 draw.rounded_rectangle((490, 1400, 790, 1468), radius=34, fill=(143, 203, 125, 190))
 draw.text((548, 1417), "SHIFT CYCLE", font=font(23), fill=(241, 255, 236))
-add_window(third, 1500, 40, 1720)
+add_window(third, args.preferences, 1500, 40, 1720)
 save(third, "03-flexible-schedules.png")

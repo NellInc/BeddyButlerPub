@@ -55,7 +55,26 @@ private struct WeekdayChoice: Identifiable {
     var id: Int { weekday }
 }
 
-private struct WindowMaterialView: NSViewRepresentable {
+enum BeddyPalette {
+    static let night = Color(red: 6 / 255, green: 17 / 255, blue: 38 / 255)
+    static let nightDeep = Color(red: 3 / 255, green: 9 / 255, blue: 22 / 255)
+    static let nightLifted = Color(red: 7 / 255, green: 21 / 255, blue: 44 / 255)
+    static let ink = Color(red: 246 / 255, green: 249 / 255, blue: 1)
+    static let muted = Color(red: 174 / 255, green: 187 / 255, blue: 208 / 255)
+    static let faint = Color(red: 120 / 255, green: 137 / 255, blue: 165 / 255)
+    static let blue = Color(red: 128 / 255, green: 198 / 255, blue: 1)
+    static let blueBright = Color(red: 169 / 255, green: 221 / 255, blue: 1)
+    static let violet = Color(red: 158 / 255, green: 169 / 255, blue: 1)
+    static let warm = Color(red: 242 / 255, green: 179 / 255, blue: 117 / 255)
+    static let zombie = Color(red: 166 / 255, green: 209 / 255, blue: 138 / 255)
+    static let success = Color(red: 166 / 255, green: 226 / 255, blue: 190 / 255)
+    static let glass = Color(red: 15 / 255, green: 31 / 255, blue: 58 / 255).opacity(0.74)
+    static let glassStrong = Color(red: 14 / 255, green: 29 / 255, blue: 54 / 255).opacity(0.90)
+    static let line = Color.white.opacity(0.12)
+    static let lineStrong = Color.white.opacity(0.20)
+}
+
+struct WindowMaterialView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = .underWindowBackground
@@ -67,38 +86,67 @@ private struct WindowMaterialView: NSViewRepresentable {
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
 
-private struct BeddyBackdrop: View {
+private struct BeddyStars: View {
+    private let positions: [(CGFloat, CGFloat, CGFloat)] = [
+        (0.08, 0.12, 2.2), (0.29, 0.07, 1.4), (0.48, 0.24, 1.8),
+        (0.69, 0.11, 1.5), (0.91, 0.29, 2.0), (0.17, 0.72, 1.4),
+        (0.82, 0.64, 1.2), (0.38, 0.48, 1.0),
+    ]
+
+    var body: some View {
+        GeometryReader { geometry in
+            ForEach(Array(positions.enumerated()), id: \.offset) { _, star in
+                Circle()
+                    .fill(BeddyPalette.blueBright.opacity(0.72))
+                    .frame(width: star.2, height: star.2)
+                    .shadow(color: BeddyPalette.blue.opacity(0.9), radius: 4)
+                    .position(
+                        x: geometry.size.width * star.0,
+                        y: geometry.size.height * star.1
+                    )
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+struct BeddyBackdrop: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
             WindowMaterialView()
 
             if reduceTransparency {
-                Color(nsColor: .windowBackgroundColor)
+                BeddyPalette.nightDeep
             } else {
-                Color(nsColor: .windowBackgroundColor).opacity(colorScheme == .dark ? 0.58 : 0.36)
+                LinearGradient(
+                    colors: [BeddyPalette.nightLifted, BeddyPalette.night, BeddyPalette.nightDeep],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
 
                 RadialGradient(
                     colors: [
-                        Color.indigo.opacity(colorScheme == .dark ? 0.17 : 0.12),
+                        Color(red: 44 / 255, green: 116 / 255, blue: 197 / 255).opacity(0.30),
                         .clear,
                     ],
-                    center: .topLeading,
+                    center: .topTrailing,
                     startRadius: 20,
-                    endRadius: 520
+                    endRadius: 560
                 )
 
                 RadialGradient(
                     colors: [
-                        Color.cyan.opacity(colorScheme == .dark ? 0.09 : 0.07),
+                        Color(red: 85 / 255, green: 51 / 255, blue: 146 / 255).opacity(0.16),
                         .clear,
                     ],
-                    center: .bottomTrailing,
+                    center: .leading,
                     startRadius: 10,
-                    endRadius: 500
+                    endRadius: 620
                 )
+
+                BeddyStars()
             }
         }
         .ignoresSafeArea()
@@ -114,7 +162,6 @@ private struct BeddyCard<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -123,11 +170,12 @@ private struct BeddyCard<Content: View>: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(tint)
                     .frame(width: 28, height: 28)
-                    .background(tint.opacity(colorScheme == .dark ? 0.18 : 0.11), in: Circle())
+                    .background(tint.opacity(0.16), in: Circle())
                     .accessibilityHidden(true)
 
                 Text(title)
                     .font(.title3.weight(.semibold))
+                    .foregroundStyle(BeddyPalette.ink)
             }
 
             content()
@@ -138,15 +186,18 @@ private struct BeddyCard<Content: View>: View {
             ZStack {
                 if reduceTransparency {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
+                        .fill(BeddyPalette.night)
                 } else {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(.regularMaterial)
+                        .fill(.ultraThinMaterial)
+
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(BeddyPalette.glass)
                 }
 
                 if emphasized, !reduceTransparency {
                     LinearGradient(
-                        colors: [tint.opacity(colorScheme == .dark ? 0.12 : 0.08), .clear],
+                        colors: [tint.opacity(0.16), .clear],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -157,16 +208,17 @@ private struct BeddyCard<Content: View>: View {
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(
-                    Color.primary.opacity(reduceTransparency ? 0.13 : (colorScheme == .dark ? 0.11 : 0.07)),
+                    reduceTransparency ? BeddyPalette.lineStrong : BeddyPalette.line,
                     lineWidth: 1
                 )
         }
         .shadow(
-            color: reduceTransparency ? .clear : .black.opacity(colorScheme == .dark ? 0.22 : 0.07),
-            radius: emphasized ? 16 : 10,
+            color: reduceTransparency ? .clear : .black.opacity(0.34),
+            radius: emphasized ? 20 : 14,
             x: 0,
-            y: emphasized ? 8 : 5
+            y: emphasized ? 10 : 7
         )
+        .foregroundStyle(BeddyPalette.ink)
         .accessibilityElement(children: .contain)
     }
 }
@@ -182,9 +234,59 @@ private struct GlassCapsuleModifier: ViewModifier {
             content
                 .background(.thinMaterial, in: Capsule())
                 .overlay {
-                    Capsule().strokeBorder(Color.primary.opacity(0.09), lineWidth: 1)
+                    Capsule().strokeBorder(BeddyPalette.line, lineWidth: 1)
                 }
         }
+    }
+}
+
+struct BeddyPrimaryButtonStyle: ButtonStyle {
+    let glow: Color
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(BeddyPalette.nightDeep)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 9)
+            .frame(minHeight: 36)
+            .background {
+                LinearGradient(
+                    colors: [Color.white, Color(red: 216 / 255, green: 234 / 255, blue: 1)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.55), lineWidth: 1)
+            }
+            .shadow(color: glow.opacity(0.26), radius: 12, y: 6)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.42)
+    }
+}
+
+struct BeddySecondaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(BeddyPalette.ink)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 8)
+            .frame(minHeight: 34)
+            .background(Color.white.opacity(configuration.isPressed ? 0.11 : 0.055))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(BeddyPalette.line, lineWidth: 1)
+            }
+            .opacity(isEnabled ? 1 : 0.38)
     }
 }
 
@@ -193,15 +295,7 @@ private struct PrimaryGlassButtonModifier: ViewModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            content
-                .buttonStyle(.glassProminent)
-                .tint(tint)
-        } else {
-            content
-                .buttonStyle(.borderedProminent)
-                .tint(tint)
-        }
+        content.buttonStyle(BeddyPrimaryButtonStyle(glow: tint))
     }
 }
 
@@ -210,7 +304,7 @@ extension View {
         modifier(GlassCapsuleModifier(tint: tint))
     }
 
-    fileprivate func primaryGlassButton(tint: Color = .indigo) -> some View {
+    fileprivate func primaryGlassButton(tint: Color = BeddyPalette.blue) -> some View {
         modifier(PrimaryGlassButtonModifier(tint: tint))
     }
 }
@@ -238,10 +332,10 @@ final class PreferencesWindowController: NSWindowController {
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
-        if environment["BEDDY_BUTLER_APPEARANCE"] == "dark" {
-            window.appearance = NSAppearance(named: .darkAqua)
-        } else if environment["BEDDY_BUTLER_APPEARANCE"] == "light" {
+        if environment["BEDDY_BUTLER_APPEARANCE"] == "light" {
             window.appearance = NSAppearance(named: .aqua)
+        } else {
+            window.appearance = NSAppearance(named: .darkAqua)
         }
         window.setContentSize(NSSize(width: 720, height: 800))
         window.minSize = NSSize(width: 640, height: 680)
@@ -320,6 +414,8 @@ struct PreferencesView: View {
             }
         }
         .frame(minWidth: 640, minHeight: 680)
+        .tint(BeddyPalette.blue)
+        .preferredColorScheme(.dark)
         .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
             timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
         }
@@ -331,14 +427,19 @@ struct PreferencesView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 72, height: 72)
-                .shadow(color: .black.opacity(0.16), radius: 8, x: 0, y: 4)
+                .shadow(color: BeddyPalette.blue.opacity(0.24), radius: 16, x: 0, y: 8)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
+                Text("YOUR EVENING, BEAUTIFULLY")
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(1.3)
+                    .foregroundStyle(BeddyPalette.blueBright)
                 Text("Beddy Butler")
                     .font(.largeTitle.weight(.semibold))
+                    .foregroundStyle(BeddyPalette.ink)
                 Text("Gentle reminders for a better-rested tomorrow.")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BeddyPalette.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -360,7 +461,7 @@ struct PreferencesView: View {
         BeddyCard(
             title: "Welcome to the night shift",
             symbol: "sparkles",
-            tint: .indigo,
+            tint: BeddyPalette.violet,
             emphasized: true
         ) {
             Text("Set tonight's routine below. Beddy Butler saves changes instantly and waits in your menu bar.")
@@ -391,14 +492,14 @@ struct PreferencesView: View {
         BeddyCard(
             title: "Tonight",
             symbol: settings.isMuted() ? "pause.circle.fill" : "moon.stars.fill",
-            tint: settings.isMuted() ? .orange : .indigo,
+            tint: settings.isMuted() ? BeddyPalette.warm : BeddyPalette.violet,
             emphasized: true
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: settings.isMuted() ? "pause.circle.fill" : "moon.stars.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(settings.isMuted() ? .orange : .indigo)
+                        .foregroundStyle(settings.isMuted() ? BeddyPalette.warm : BeddyPalette.violet)
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 3) {
@@ -530,7 +631,7 @@ struct PreferencesView: View {
     }
 
     private var scheduleSection: some View {
-        BeddyCard(title: "Bedtime window", symbol: "clock.fill", tint: .blue) {
+        BeddyCard(title: "Bedtime window", symbol: "clock.fill", tint: BeddyPalette.blue) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     Text("Schedule name")
@@ -611,7 +712,7 @@ struct PreferencesView: View {
                                 weekdayLabel(choice.label, selected: selected)
                             }
                             .buttonStyle(.bordered)
-                            .tint(selected ? .indigo : .secondary)
+                            .tint(selected ? BeddyPalette.blue : BeddyPalette.faint)
                             .accessibilityLabel("\(choice.fullLabel) nights")
                             .accessibilityValue(selected ? "Active" : "Inactive")
                             .accessibilityAddTraits(selected ? .isSelected : [])
@@ -667,7 +768,7 @@ struct PreferencesView: View {
                                             weekdayLabel(choice.label, selected: selected)
                                         }
                                         .buttonStyle(.bordered)
-                                        .tint(selected ? .indigo : .secondary)
+                                        .tint(selected ? BeddyPalette.blue : BeddyPalette.faint)
                                         .accessibilityLabel(
                                             "(settings.alternateScheduleName) schedule on (choice.fullLabel) nights"
                                         )
@@ -794,7 +895,7 @@ struct PreferencesView: View {
     }
 
     private var personalitySection: some View {
-        BeddyCard(title: "Nudge", symbol: "bell.badge.fill", tint: .purple) {
+        BeddyCard(title: "Nudge", symbol: "bell.badge.fill", tint: BeddyPalette.violet) {
             VStack(alignment: .leading, spacing: 14) {
                 Picker("Nudge delivery", selection: nudgeDeliveryBinding) {
                     ForEach(NudgeDelivery.allCases) { delivery in
@@ -851,7 +952,7 @@ struct PreferencesView: View {
                         } label: {
                             Label(previewLabel, systemImage: previewSymbol)
                         }
-                        .primaryGlassButton(tint: .purple)
+                        .primaryGlassButton(tint: BeddyPalette.violet)
                         .accessibilityLabel(previewLabel)
                         .accessibilityIdentifier("nudge.preview")
                         .accessibilityHint(previewAccessibilityHint)
@@ -903,7 +1004,7 @@ struct PreferencesView: View {
     }
 
     private var behaviorSection: some View {
-        BeddyCard(title: "Behavior", symbol: "dial.medium", tint: .pink) {
+        BeddyCard(title: "Behavior", symbol: "dial.medium", tint: BeddyPalette.warm) {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Progressive mode", isOn: progressiveBinding)
                     .fontWeight(.medium)
@@ -930,7 +1031,7 @@ struct PreferencesView: View {
     }
 
     private var startupSection: some View {
-        BeddyCard(title: "Startup", symbol: "power", tint: .green) {
+        BeddyCard(title: "Startup", symbol: "power", tint: BeddyPalette.zombie) {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Open Beddy Butler at login", isOn: launchAtLoginBinding)
                     .accessibilityLabel("Open Beddy Butler at login")
@@ -1013,15 +1114,15 @@ struct PreferencesView: View {
 
     private var headerStatusTint: Color {
         if scheduler.visualNudgePending {
-            return .orange
+            return BeddyPalette.warm
         }
         if settings.isMuted() {
-            return .orange
+            return BeddyPalette.warm
         }
         if scheduler.nextNudge != nil {
-            return .green
+            return BeddyPalette.success
         }
-        return .gray
+        return BeddyPalette.faint
     }
 
     private var scheduleHeading: String {
