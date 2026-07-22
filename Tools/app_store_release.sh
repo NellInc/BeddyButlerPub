@@ -6,7 +6,7 @@ cd "$root"
 
 mode="${1:---preflight}"
 version="${2:-2.0}"
-build="${3:-1}"
+build="${3:-608}"
 team_id="${BEDDY_APPLE_TEAM_ID:-BBYYCBH7EW}"
 archive="${BEDDY_ARCHIVE_PATH:-${TMPDIR:-/tmp}/BeddyButler-${version}-${build}.xcarchive}"
 export_dir="${BEDDY_EXPORT_PATH:-${TMPDIR:-/tmp}/BeddyButler-AppStore-${version}-${build}}"
