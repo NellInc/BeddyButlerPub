@@ -361,6 +361,117 @@ final class PreferencesWindowController: NSWindowController {
     }
 }
 
+private struct AnimatedButlerArtwork: View {
+    enum Presentation {
+        case header
+        case preview
+    }
+
+    let personality: ButlerPersonality
+    let presentation: Presentation
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isAtRestingPeak = false
+
+    var body: some View {
+        artwork
+            .id(personality.id)
+            .scaleEffect(
+                x: reduceMotion ? 1 : horizontalScale,
+                y: reduceMotion ? 1 : verticalScale,
+                anchor: .bottom
+            )
+            .rotationEffect(.degrees(reduceMotion ? 0 : rotation))
+            .offset(
+                x: reduceMotion ? 0 : horizontalOffset,
+                y: reduceMotion ? 0 : verticalOffset
+            )
+            .shadow(color: accent.opacity(0.18), radius: 9, x: 0, y: 5)
+            .animation(
+                reduceMotion
+                    ? nil
+                    : .easeInOut(duration: animationDuration).repeatForever(autoreverses: true),
+                value: isAtRestingPeak
+            )
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.24),
+                value: personality
+            )
+            .onAppear {
+                guard !reduceMotion else { return }
+                isAtRestingPeak = true
+            }
+            .onChange(of: reduceMotion) { shouldReduceMotion in
+                isAtRestingPeak = !shouldReduceMotion
+            }
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var artwork: some View {
+        switch presentation {
+        case .header:
+            Image(personality.assetName)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFill()
+                .frame(width: 82, height: 78, alignment: .top)
+                .scaleEffect(1.42, anchor: .top)
+                .frame(width: 82, height: 78, alignment: .top)
+                .clipped()
+                .drawingGroup(opaque: false, colorMode: .linear)
+        case .preview:
+            Image(personality.assetName)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 92, height: 112)
+                .drawingGroup(opaque: false, colorMode: .linear)
+        }
+    }
+
+    private var animationDuration: Double {
+        switch personality {
+        case .shy: 3.6
+        case .insistent: 3.1
+        case .zombie: 3.9
+        }
+    }
+
+    private var horizontalOffset: CGFloat {
+        let amplitude: CGFloat = personality == .zombie ? 1.1 : personality == .insistent ? 0.8 : 0.3
+        return isAtRestingPeak ? amplitude : -amplitude
+    }
+
+    private var verticalOffset: CGFloat {
+        let amplitude: CGFloat = personality == .zombie ? 1.4 : 1.1
+        return isAtRestingPeak ? -amplitude : amplitude
+    }
+
+    private var rotation: Double {
+        let amplitude = personality == .zombie ? 0.65 : personality == .insistent ? 0.35 : 0.22
+        return isAtRestingPeak ? amplitude : -amplitude
+    }
+
+    private var horizontalScale: CGFloat {
+        let amplitude: CGFloat = personality == .insistent ? 0.004 : 0.002
+        return isAtRestingPeak ? 1 + amplitude : 1 - amplitude
+    }
+
+    private var verticalScale: CGFloat {
+        let amplitude: CGFloat = personality == .zombie ? 0.009 : 0.007
+        return isAtRestingPeak ? 1 + amplitude : 1 - amplitude
+    }
+
+    private var accent: Color {
+        switch personality {
+        case .shy: BeddyPalette.blue
+        case .insistent: BeddyPalette.warm
+        case .zombie: BeddyPalette.zombie
+        }
+    }
+}
+
 struct PreferencesView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var scheduler: ButlerTimer
@@ -423,12 +534,7 @@ struct PreferencesView: View {
 
     private var header: some View {
         HStack(spacing: 17) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 72, height: 72)
-                .shadow(color: BeddyPalette.blue.opacity(0.24), radius: 16, x: 0, y: 8)
-                .accessibilityHidden(true)
+            AnimatedButlerArtwork(personality: .shy, presentation: .header)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("YOUR EVENING, BEAUTIFULLY")
@@ -928,11 +1034,10 @@ struct PreferencesView: View {
 
                 HStack(alignment: .center, spacing: 18) {
                     if settings.nudgeDelivery.includesSound {
-                        Image(settings.personality.assetName)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 92, height: 112)
-                            .accessibilityHidden(true)
+                        AnimatedButlerArtwork(
+                            personality: settings.personality,
+                            presentation: .preview
+                        )
                     } else {
                         Image(systemName: "bell.badge.fill")
                             .font(.system(size: 48, weight: .medium))
