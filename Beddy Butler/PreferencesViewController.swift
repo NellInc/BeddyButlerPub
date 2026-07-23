@@ -407,7 +407,7 @@ private struct AnimatedButlerArtwork: View {
                 contentMode: .upperBody,
                 intensity: 0.68
             )
-            .frame(width: 82, height: 78)
+            .frame(width: 108, height: 96)
         case .preview:
             ButlerRiggedView(
                 personality: personality,
@@ -416,7 +416,7 @@ private struct AnimatedButlerArtwork: View {
                 contentMode: .fit,
                 intensity: 1
             )
-            .frame(width: 92, height: 112)
+            .frame(width: 144, height: 172)
         }
     }
 
@@ -1026,7 +1026,7 @@ struct PreferencesView: View {
                             .font(.system(size: 48, weight: .medium))
                             .symbolRenderingMode(.hierarchical)
                             .foregroundStyle(Color.accentColor)
-                            .frame(width: 92, height: 112)
+                            .frame(width: 144, height: 172)
                             .accessibilityHidden(true)
                     }
 
