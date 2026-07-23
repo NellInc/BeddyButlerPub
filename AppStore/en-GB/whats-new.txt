@@ -1,3 +1,5 @@
-Beddy Butler has been completely rebuilt for modern macOS.
+Beddy Butler is back, completely rebuilt for modern macOS.
 
-Version 2.0 adds flexible weekday and rotating schedules, a second schedule, one night adjustments, Progressive mode, visual and Notification Centre nudges, shortened and balanced voice clips, reliable time zone handling, a new menu bar dashboard, a refreshed app icon, and a fully native accessible interface.
+Version 2.0 brings a beautiful native Swift 6 interface, flexible weekday and rotating shift schedules, an optional second schedule, one-night adjustments, Progressive mode, visual and Notification Centre nudges, shortened and balanced voice clips, dependable time zone handling, and a refreshed menu bar dashboard and app icon.
+
+Still completely free. Still private. Now also somewhat good.

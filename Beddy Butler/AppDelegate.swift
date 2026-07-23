@@ -1172,20 +1172,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
 
     private func writeSnapshot(of window: NSWindow, to destination: URL) throws {
         window.displayIfNeeded()
-        guard
-            let image = CGWindowListCreateImage(
-                .null,
-                .optionIncludingWindow,
-                CGWindowID(window.windowNumber),
-                [.boundsIgnoreFraming, .bestResolution]
-            )
-        else {
+        if let image = CGWindowListCreateImage(
+            .null,
+            .optionIncludingWindow,
+            CGWindowID(window.windowNumber),
+            [.boundsIgnoreFraming, .bestResolution]
+        ) {
+            let bitmap = NSBitmapImageRep(cgImage: image)
+            guard let pngData = bitmap.representation(using: .png, properties: [:]) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            try pngData.write(to: destination, options: .atomic)
+            return
+        }
+
+        // Window capture can be unavailable when macOS screen-capture services
+        // are unhealthy or the host has not granted Screen Recording access.
+        // The edge-to-edge SwiftUI content still produces an accurate,
+        // permission-free release capture.
+        guard let contentView = window.contentView else {
             throw CocoaError(.fileWriteUnknown)
         }
-        let bitmap = NSBitmapImageRep(cgImage: image)
-        guard let pngData = bitmap.representation(using: .png, properties: [:]) else {
-            throw CocoaError(.fileWriteUnknown)
-        }
-        try pngData.write(to: destination, options: .atomic)
+        try writeSnapshot(of: contentView, to: destination)
     }
 }

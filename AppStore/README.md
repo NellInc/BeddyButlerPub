@@ -1,6 +1,6 @@
 # Mac App Store submission package
 
-This folder contains the product copy and release notes for Beddy Butler 2.0. The live product page should use:
+This folder contains the product copy, release notes, and six polished 2880 by 1800 screenshots for Beddy Butler 2.0. The live product page should use:
 
 * Marketing URL: https://www.beddybutler.com/
 * Support URL: https://www.beddybutler.com/support/

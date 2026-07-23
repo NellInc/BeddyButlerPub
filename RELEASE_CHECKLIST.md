@@ -27,7 +27,7 @@
 3. Run `Tools/app_store_release.sh --preflight 2.0 610` and resolve every failure.
 4. Confirm an Apple Distribution certificate or Xcode managed cloud signing is available.
 5. Run `Tools/app_store_release.sh --upload 2.0 610` and confirm the build finishes processing in App Store Connect.
-6. Apply the copy and URLs from `AppStore/en-GB`, then upload the 2880 by 1800 images from `AppStore/Screenshots`.
+6. Apply the copy and URLs from `AppStore/en-GB`, then upload the six 2880 by 1800 images from `AppStore/Screenshots` in filename order.
 7. Complete the age rating, pricing, territories, export compliance, content rights, and app privacy questionnaires accurately.
 8. Confirm the Marketing, Support, and Privacy URLs return HTTP 200 over HTTPS before submission.
 9. Test the processed build through TestFlight on a clean macOS account before sending it to review.

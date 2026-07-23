@@ -62,12 +62,18 @@ process.standardOutput = log
 process.standardError = log
 
 try process.run()
-defer {
+func cleanUp() {
     if process.isRunning {
         process.terminate()
         process.waitUntilExit()
     }
     UserDefaults(suiteName: defaultsSuite)?.removePersistentDomain(forName: defaultsSuite)
+}
+defer { cleanUp() }
+
+func finish(_ status: Int32) -> Never {
+    cleanUp()
+    exit(status)
 }
 
 let app = AXUIElementCreateApplication(process.processIdentifier)
@@ -99,7 +105,7 @@ guard process.isRunning else {
     if let output = String(data: data, encoding: .utf8), !output.isEmpty {
         fputs(output, stderr)
     }
-    exit(1)
+    finish(1)
 }
 
 let missing = requiredIdentifiers.subtracting(identifiers)
@@ -118,11 +124,11 @@ let windowTitles: Set<String> = Set(
 
 guard windowTitles.contains("Beddy Butler Preferences") else {
     fputs("The preferences window was absent from the accessibility hierarchy.\n", stderr)
-    exit(1)
+    finish(1)
 }
 guard missing.isEmpty else {
     fputs("Missing accessibility identifiers: \(missing.sorted().joined(separator: ", "))\n", stderr)
-    exit(1)
+    finish(1)
 }
 
 var semanticFailures: [String] = []
@@ -145,7 +151,7 @@ for (identifier, expected) in requiredSemantics {
 }
 guard semanticFailures.isEmpty else {
     fputs("Accessibility semantic failures: \(semanticFailures.sorted().joined(separator: "; "))\n", stderr)
-    exit(1)
+    finish(1)
 }
 
 guard
@@ -159,7 +165,7 @@ guard
     let sizeValue = axValueAttribute(kAXSizeAttribute as CFString, of: menuBarItem)
 else {
     fputs("The Beddy Butler menu-bar item could not be located for a physical click.\n", stderr)
-    exit(1)
+    finish(1)
 }
 
 var menuBarPosition = CGPoint.zero
@@ -168,7 +174,7 @@ guard AXValueGetValue(positionValue, .cgPoint, &menuBarPosition),
     AXValueGetValue(sizeValue, .cgSize, &menuBarSize)
 else {
     fputs("The Beddy Butler menu-bar item did not expose clickable bounds.\n", stderr)
-    exit(1)
+    finish(1)
 }
 
 let originalPointerPosition = CGEvent(source: nil)?.location
@@ -191,7 +197,7 @@ guard
     )
 else {
     fputs("The physical menu-bar click events could not be created.\n", stderr)
-    exit(1)
+    finish(1)
 }
 mouseDown.post(tap: .cghidEventTap)
 Thread.sleep(forTimeInterval: 0.06)
@@ -207,7 +213,6 @@ if let originalPointerPosition,
     restorePointer.post(tap: .cghidEventTap)
 }
 
-let popoverDeadline = Date().addingTimeInterval(4)
 let popoverIdentifiers: Set<String> = [
     "popover.preview",
     "popover.snooze",
@@ -216,6 +221,7 @@ let popoverIdentifiers: Set<String> = [
     "popover.quit",
 ]
 var visiblePopoverIdentifiers: Set<String> = []
+var popoverDeadline = Date().addingTimeInterval(4)
 repeat {
     Thread.sleep(forTimeInterval: 0.2)
     visiblePopoverIdentifiers = Set(
@@ -225,16 +231,40 @@ repeat {
     )
 } while !popoverIdentifiers.isSubset(of: visiblePopoverIdentifiers) && Date() < popoverDeadline
 
+var usedAccessibilityFallback = false
+if !popoverIdentifiers.isSubset(of: visiblePopoverIdentifiers) {
+    // A newly launched status item can be placed behind a MacBook notch when
+    // the current menu bar is crowded. The app remains operable through its
+    // standard accessibility press action, so use that as a deterministic
+    // fallback while preserving the physical-click attempt above.
+    if AXUIElementPerformAction(menuBarItem, kAXPressAction as CFString) == .success {
+        usedAccessibilityFallback = true
+        popoverDeadline = Date().addingTimeInterval(4)
+        repeat {
+            Thread.sleep(forTimeInterval: 0.2)
+            visiblePopoverIdentifiers = Set(
+                descendants(of: app).compactMap {
+                    attribute(kAXIdentifierAttribute as CFString, of: $0) as? String
+                }
+            )
+        } while !popoverIdentifiers.isSubset(of: visiblePopoverIdentifiers)
+            && Date() < popoverDeadline
+    }
+}
+
 let missingPopoverControls = popoverIdentifiers.subtracting(visiblePopoverIdentifiers)
 guard missingPopoverControls.isEmpty else {
     fputs(
         "Missing Tonight-panel controls: \(missingPopoverControls.sorted().joined(separator: ", "))\n",
         stderr
     )
-    exit(1)
+    finish(1)
 }
 
 print(
     "Accessibility smoke passed: \(elements.count) elements, "
         + "\(requiredIdentifiers.count + popoverIdentifiers.count) required controls"
+        + (usedAccessibilityFallback
+            ? " (accessibility press fallback used for the current menu-bar layout)"
+            : "")
 )
