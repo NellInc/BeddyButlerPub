@@ -175,6 +175,36 @@ final class BeddyButlerTimerTests: XCTestCase {
         XCTAssertEqual(range.upperBound, 1_020)
     }
 
+    func testNonFiniteIntervalUsesTheSafeDefault() {
+        let range = ScheduleCalculator.intervalRange(frequencyMinutes: .nan)
+
+        XCTAssertEqual(range.lowerBound, AppSettings.defaultFrequencyMinutes * 60)
+        XCTAssertEqual(range.upperBound, AppSettings.defaultFrequencyMinutes * 60 * 1.7)
+    }
+
+    func testSpringDSTGapPreservesMinuteOffsetsAndWindowDuration() throws {
+        let calendar = calendar()
+        let now = date(2026, 3, 29, 0, 30, calendar: calendar)
+        let nudge = try XCTUnwrap(
+            ScheduleCalculator(calendar: calendar).nextNudge(
+                after: now,
+                interval: 5 * 60,
+                startSeconds: 1 * 3_600 + 10 * 60,
+                bedSeconds: 1 * 3_600 + 50 * 60
+            )
+        )
+
+        XCTAssertEqual(
+            calendar.dateComponents([.hour, .minute], from: nudge.window.start),
+            DateComponents(hour: 2, minute: 10)
+        )
+        XCTAssertEqual(
+            calendar.dateComponents([.hour, .minute], from: nudge.window.end),
+            DateComponents(hour: 2, minute: 50)
+        )
+        XCTAssertEqual(nudge.window.duration, 40 * 60)
+    }
+
     func testInactiveNightsAreSkipped() throws {
         let calendar = calendar()
         let tuesday = date(2026, 7, 21, 20, calendar: calendar)
@@ -227,6 +257,7 @@ final class BeddyButlerTimerTests: XCTestCase {
             calendar.dateComponents([.day, .hour, .minute], from: nudge.fireDate),
             DateComponents(day: 26, hour: 23, minute: 10)
         )
+        XCTAssertEqual(schedule.selection(for: nudge.window.start, calendar: calendar), .alternate)
     }
 
     func testUnselectedFridayKeepsPrimarySchedule() throws {
@@ -429,6 +460,36 @@ final class BeddyButlerTimerTests: XCTestCase {
         XCTAssertEqual(scheduler.pendingVisualNudgeCount, 2)
         XCTAssertTrue(scheduler.lastEvent.contains("Shy played"))
         XCTAssertTrue(scheduler.lastEvent.contains("Visual bedtime badge"))
+    }
+
+    @MainActor
+    func testOverdueTimerDoesNotDeliverOutsideItsScheduledWindow() throws {
+        let suiteName = "BeddyButlerOverdueTimerTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let settings = AppSettings(defaults: defaults)
+        settings.updateStartSeconds(21 * 3_600)
+        settings.updateBedSeconds(23 * 3_600)
+        let currentCalendar = Calendar.autoupdatingCurrent
+        var currentDate = date(2026, 7, 21, 22, calendar: currentCalendar)
+        let audioPlayer = RecordingAudioPlayer()
+        let scheduler = ButlerTimer(
+            settings: settings,
+            audioPlayer: audioPlayer,
+            now: { currentDate },
+            intervalProvider: { $0.lowerBound },
+            escalationProvider: { 2 }
+        )
+        defer {
+            scheduler.timer?.invalidate()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        currentDate = date(2026, 7, 22, 12, calendar: currentCalendar)
+        scheduler.handleTimerFire()
+
+        XCTAssertEqual(audioPlayer.playCount, 0)
+        XCTAssertGreaterThan(try XCTUnwrap(scheduler.nextNudge), currentDate)
     }
 
     @MainActor

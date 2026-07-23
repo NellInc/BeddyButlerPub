@@ -33,6 +33,20 @@ DerivedData/
 *.ipa
 *.dSYM.zip
 *.dSYM
+*.dmg
+*.pkg
+*.xcarchive
+*.mobileprovision
+*.provisionprofile
+
+# Credentials and local environment files
+.env
+.env.*
+*.cer
+*.p8
+*.p12
+*.pem
+*.key
 
 ## Playgrounds
 timeline.xctimeline

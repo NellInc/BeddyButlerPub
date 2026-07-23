@@ -63,6 +63,21 @@ final class BeddyButlerWallClockTests: XCTestCase {
         XCTAssertEqual(feedback.host, "github.com")
     }
 
+    @MainActor
+    func testAlternateScheduleCopyUsesTheChosenNameAndWeekday() {
+        XCTAssertEqual(
+            PreferencesView.alternateScheduleNightsTitle("Observance"),
+            "Observance nights"
+        )
+        XCTAssertEqual(
+            PreferencesView.alternateWeekdayAccessibilityLabel(
+                scheduleName: "Observance",
+                weekdayName: "Friday"
+            ),
+            "Observance schedule on Friday nights"
+        )
+    }
+
     func testPopoverIsClampedBelowTheNotchAndInsideScreenEdges() {
         let screenFrame = NSRect(x: 0, y: 0, width: 1_728, height: 1_117)
         let visibleFrame = NSRect(x: 0, y: 0, width: 1_728, height: 1_084)
@@ -88,6 +103,18 @@ final class BeddyButlerWallClockTests: XCTestCase {
         )
         XCTAssertEqual(adjustedBottomRight.maxX, 1_720)
         XCTAssertEqual(adjustedBottomRight.minY, 8)
+    }
+
+    func testOversizedPopoverIsFittedInsideTheUsableFrame() {
+        let usableFrame = NSRect(x: 8, y: 8, width: 320, height: 360)
+        let oversized = NSRect(x: -40, y: -70, width: 390, height: 520)
+
+        let adjusted = NotchSafePopoverPlacement.clampedFrame(
+            oversized,
+            inside: usableFrame
+        )
+
+        XCTAssertEqual(adjusted, usableFrame)
     }
 
     @MainActor

@@ -157,6 +157,44 @@ final class BeddyButlerUserDefaultsTests: XCTestCase {
     }
 
     @MainActor
+    func testNonFiniteFrequencyAndVolumeRecoverToSafeDefaults() {
+        let defaults = freshDefaults()
+        defaults.set(Double.nan, forKey: UserDefaultKeys.frequency.rawValue)
+        defaults.set(Double.infinity, forKey: UserDefaultKeys.voiceVolume.rawValue)
+
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.frequencyMinutes, AppSettings.defaultFrequencyMinutes)
+        XCTAssertEqual(settings.voiceVolume, AppSettings.defaultVoiceVolume)
+        XCTAssertTrue(settings.frequencyMinutes.isFinite)
+        XCTAssertTrue(settings.voiceVolume.isFinite)
+
+        settings.updateFrequencyMinutes(-Double.infinity)
+        settings.updateVoiceVolume(Double.nan)
+        XCTAssertEqual(settings.frequencyMinutes, AppSettings.defaultFrequencyMinutes)
+        XCTAssertEqual(settings.voiceVolume, AppSettings.defaultVoiceVolume)
+    }
+
+    func testCalendarDateIdentitySurvivesTimeZoneChanges() throws {
+        var london = Calendar(identifier: .gregorian)
+        london.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/London"))
+        var newYork = Calendar(identifier: .gregorian)
+        newYork.timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        let selectedDate = try XCTUnwrap(
+            london.date(from: DateComponents(year: 2026, month: 7, day: 21))
+        )
+
+        let calendarDate = LocalCalendarDate(date: selectedDate, calendar: london)
+        let reconstructed = try XCTUnwrap(calendarDate.date(calendar: newYork))
+
+        XCTAssertEqual(calendarDate.storedValue, "2026-07-21")
+        XCTAssertEqual(
+            newYork.dateComponents([.year, .month, .day], from: reconstructed),
+            DateComponents(year: 2026, month: 7, day: 21)
+        )
+    }
+
+    @MainActor
     func testUnknownNudgeDeliveryMigratesToSound() {
         let defaults = freshDefaults()
         defaults.set("Haptic", forKey: UserDefaultKeys.nudgeDelivery.rawValue)

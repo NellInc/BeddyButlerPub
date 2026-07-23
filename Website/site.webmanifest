@@ -3,7 +3,7 @@
   "short_name": "Beddy Butler",
   "description": "A completely free, lovingly revamped Mac menu bar companion for gentler evenings.",
   "start_url": "/",
-  "display": "standalone",
+  "display": "browser",
   "background_color": "#061126",
   "theme_color": "#071328",
   "icons": [

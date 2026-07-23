@@ -141,7 +141,8 @@ final class AudioPlayer: AudioPlaying {
 
         do {
             let nextPlayer = try AVAudioPlayer(contentsOf: clip)
-            nextPlayer.volume = Float(min(max(volume, 0), 1))
+            let finiteVolume = volume.isFinite ? volume : AppSettings.defaultVoiceVolume
+            nextPlayer.volume = Float(min(max(finiteVolume, 0), 1))
             guard nextPlayer.prepareToPlay(), nextPlayer.play() else {
                 throw AudioPlayerError.playbackRefused(clip)
             }

@@ -8,8 +8,9 @@ version="${1:-}"
 build="${2:-}"
 mode="${3:-notarized}"
 notary_profile="${BEDDY_NOTARY_PROFILE:-beddy-butler-notary}"
-archive="${TMPDIR:-/tmp}/BeddyButler-${version:-release}.xcarchive"
-exported="${TMPDIR:-/tmp}/BeddyButler-${version:-release}-export"
+temporary_base="${TMPDIR:-/tmp}"
+archive="${temporary_base}/BeddyButler-${version:-release}-${build:-build}.xcarchive"
+exported="${temporary_base}/BeddyButler-${version:-release}-${build:-build}-export"
 
 if [[ -z "$version" || -z "$build" ]]; then
   print -u2 "Usage: Tools/release.sh <marketing-version> <build-number> [--local]"
@@ -31,6 +32,22 @@ if [[ ! "$build" =~ '^[1-9][0-9]*$' ]]; then
   exit 64
 fi
 
+temporary_root="${temporary_base:A}"
+if [[ "$temporary_root" == "/" || "$temporary_root" == "${HOME:A}" || "$temporary_root" == "${root:A}" ]]; then
+  print -u2 "Unsafe temporary directory: $temporary_base"
+  exit 64
+fi
+[[ "${archive:A}" == "$temporary_root"/* && "${exported:A}" == "$temporary_root"/* ]] || {
+  print -u2 "Release paths must remain inside $temporary_base"
+  exit 64
+}
+[[ ! -L "$archive" && ! -L "$exported" ]] || {
+  print -u2 "Refusing to replace a symlinked release path."
+  exit 64
+}
+
+zsh Tools/validate_release_source.sh
+
 if ! security find-identity -v -p codesigning | grep -q 'Developer ID Application'; then
   print -u2 "A Developer ID Application identity is required in the macOS Keychain."
   exit 1
@@ -43,7 +60,7 @@ if [[ "$mode" == "notarized" ]] && ! xcrun notarytool history --keychain-profile
   exit 1
 fi
 
-rm -rf "$archive" "$exported"
+rm -rf -- "$archive" "$exported"
 xcodebuild archive \
   -project "Beddy Butler.xcodeproj" \
   -scheme "Beddy Butler" \
@@ -57,10 +74,10 @@ xcodebuild archive \
 
 mkdir -p "$exported"
 app="$archive/Products/Applications/Beddy Butler.app"
-zip="$exported/Beddy-Butler-${version}.zip"
+zip="$exported/Beddy-Butler-${version}-${build}.zip"
 notary_zip="$exported/notary-app.zip"
 dmg_staging="$exported/dmg-root"
-dmg="$exported/Beddy-Butler-${version}.dmg"
+dmg="$exported/Beddy-Butler-${version}-${build}.dmg"
 
 codesign --verify --deep --strict --verbose=2 "$app"
 
@@ -75,7 +92,7 @@ if [[ "$mode" == "notarized" ]]; then
   rm -f "$notary_zip"
 fi
 
-rm -rf "$dmg_staging"
+rm -rf -- "$dmg_staging"
 mkdir -p "$dmg_staging"
 ditto "$app" "$dmg_staging/Beddy Butler.app"
 ln -s /Applications "$dmg_staging/Applications"
@@ -105,7 +122,7 @@ ditto -c -k --keepParent "$app" "$zip"
   shasum -a 256 "${zip:t}" "${dmg:t}" > SHA256SUMS
 )
 
-rm -rf "$dmg_staging"
+rm -rf -- "$dmg_staging"
 
 if [[ "$mode" == "notarized" ]]; then
   print "Notarized artifacts: $zip and $dmg"

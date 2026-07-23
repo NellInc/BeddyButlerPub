@@ -11,4 +11,4 @@ This folder contains the product copy and release notes for Beddy Butler 2.0. Th
 
 Before upload, create the App Store Connect record for bundle identifier com.nellwatson.Beddy-Butler, confirm the app name is available, complete the age rating questionnaire, and accept any pending developer agreements. Those account actions cannot be proven from the source tree.
 
-Run Tools/app_store_release.sh --preflight 2.0 609 locally. Once the record and signing assets exist, use --upload to archive, export, and upload through Xcode.
+Run Tools/app_store_release.sh --preflight 2.0 610 locally. Once the record and signing assets exist, use --upload to archive, export, and upload through Xcode.

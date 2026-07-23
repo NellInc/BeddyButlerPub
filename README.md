@@ -29,7 +29,7 @@ The current edition preserves the original artwork and all 91 source recordings 
 - A compact native Tonight panel on left click, a full command menu on right click, an adaptive system icon, and accessible SwiftUI preferences.
 - A system-native, edge-to-edge preferences window with adaptive Liquid Glass accents on macOS 26 and standard-material fallbacks on earlier supported releases.
 - A focused night appearance with Reduced Transparency and Reduced Motion adaptation.
-- Personality-specific character animation with expressive, distortion-free movement for Shy, Insistent, and Zombie.
+- Personality-specific 2D skeletal animation with independently rigged head, torso, hands, and Zombie brain motion.
 - A modern macOS application icon that retains the original sleepy butler character.
 - Privacy-preserving website and feedback commands that open the relevant page in the default browser. Mac App Store builds use Apple's update mechanism.
 - App Sandbox and hardened runtime configuration.
@@ -61,7 +61,7 @@ python3 Tools/prepare_audio.py --check
 Create a signed local beta with the installed Developer ID identity:
 
 ```sh
-Tools/release.sh 2.0 609 --local
+Tools/release.sh 2.0 610 --local
 ```
 
 For a notarized release, first store a `beddy-butler-notary` notarytool Keychain profile, then omit `--local`. The release script notarizes and staples the app, builds and notarizes a drag-to-Applications disk image, creates a ZIP, and writes SHA-256 checksums. The rights holder has confirmed publication and asset rights.
@@ -69,9 +69,14 @@ For a notarized release, first store a `beddy-butler-notary` notarytool Keychain
 Prepare a Mac App Store build:
 
 ```sh
-Tools/app_store_release.sh --preflight 2.0 609
-Tools/app_store_release.sh --upload 2.0 609
+Tools/app_store_release.sh --preflight 2.0 610
+Tools/app_store_release.sh --upload 2.0 610
 ```
+
+Release scripts require a clean Git working tree and rerun formatting, metadata,
+website, audio, and XCTest validation before any archive is created. For a
+deliberate local verification of uncommitted work, set
+`BEDDY_ALLOW_DIRTY_RELEASE=1`; distribution builds should remain clean.
 
 The upload command requires an App Store Connect app record, accepted agreements, and working Apple distribution signing. Product copy, review notes, privacy answers, and 2880 by 1800 screenshots live in `AppStore`.
 
@@ -91,7 +96,7 @@ python3 Tools/validate_website.py
 | --- | --- |
 | `AppDelegate.swift` | Menu bar lifecycle, adaptive and badged icons, menu commands, and clock-change handling |
 | `PreferencesViewController.swift` | SwiftUI preferences hosted in AppKit |
-| `ButlerRigView.swift` | Native SpriteKit rigid-sprite choreography and Reduced Motion fallback |
+| `ButlerRigView.swift` | Native SpriteKit mesh rig, personality choreography, and Reduced Motion fallback |
 | `ButlerTimer.swift` | Calendar-safe bedtime windows, scheduling, mute behavior, progressive state |
 | `UserDefaultKeys.swift` | Typed settings, onboarding state, and migration from legacy preferences |
 | `AudioPlayer.swift` | Voice catalog and retained audio playback |

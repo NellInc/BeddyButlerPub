@@ -47,11 +47,9 @@ enum NotchSafePopoverPlacement {
     }
 
     static func clampedFrame(_ frame: NSRect, inside usableFrame: NSRect) -> NSRect {
-        guard frame.width <= usableFrame.width, frame.height <= usableFrame.height else {
-            return frame
-        }
-
         var result = frame
+        result.size.width = min(result.width, usableFrame.width)
+        result.size.height = min(result.height, usableFrame.height)
         result.origin.x = min(
             max(result.origin.x, usableFrame.minX),
             usableFrame.maxX - result.width
@@ -94,6 +92,8 @@ final class LocalNotificationManager: NSObject, ObservableObject, VisualNotifica
     var onOpen: (() -> Void)?
 
     private let center: UNUserNotificationCenter
+    private var authorizationRequestID = UUID()
+    private var authorizationRefreshID = UUID()
 
     init(center: UNUserNotificationCenter = .current()) {
         self.center = center
@@ -104,6 +104,10 @@ final class LocalNotificationManager: NSObject, ObservableObject, VisualNotifica
     }
 
     func setEnabled(_ enabled: Bool, settings: AppSettings) {
+        lastError = nil
+        authorizationRequestID = UUID()
+        authorizationRefreshID = UUID()
+        let requestID = authorizationRequestID
         guard enabled else {
             settings.updateNotificationAlertsEnabled(false)
             clearVisualNudges()
@@ -113,10 +117,11 @@ final class LocalNotificationManager: NSObject, ObservableObject, VisualNotifica
         center.requestAuthorization(options: [.alert]) { [weak self, weak settings] granted, error in
             Task { @MainActor in
                 guard let self, let settings else { return }
+                guard self.authorizationRequestID == requestID else { return }
                 if let error {
                     self.lastError = error.localizedDescription
-                    self.authorizationState = .denied
                     settings.updateNotificationAlertsEnabled(false)
+                    self.refreshAuthorizationState(settings: settings)
                 } else {
                     self.lastError = nil
                     self.authorizationState = granted ? .authorized : .denied
@@ -127,10 +132,13 @@ final class LocalNotificationManager: NSObject, ObservableObject, VisualNotifica
     }
 
     func refreshAuthorizationState(settings: AppSettings? = nil) {
+        authorizationRefreshID = UUID()
+        let refreshID = authorizationRefreshID
         center.getNotificationSettings { [weak self, weak settings] notificationSettings in
             let status = notificationSettings.authorizationStatus
             Task { @MainActor in
                 guard let self else { return }
+                guard self.authorizationRefreshID == refreshID else { return }
                 switch status {
                 case .authorized, .provisional, .ephemeral:
                     self.authorizationState = .authorized
@@ -176,6 +184,17 @@ final class LocalNotificationManager: NSObject, ObservableObject, VisualNotifica
     func clearVisualNudges() {
         center.removePendingNotificationRequests(withIdentifiers: [Self.notificationIdentifier])
         center.removeDeliveredNotifications(withIdentifiers: [Self.notificationIdentifier])
+    }
+
+    func openSystemSettings() {
+        guard
+            let url = URL(
+                string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+            )
+        else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 
     nonisolated func userNotificationCenter(
@@ -373,18 +392,25 @@ struct TonightPopoverView: View {
     }
 
     private var scheduleSummary: some View {
-        HStack(spacing: 14) {
-            Text(scheduleName)
+        let presentation = schedulePresentation
+        let name = presentation?.name ?? settings.primaryScheduleName
+        let windowText =
+            presentation.map {
+                "\(LocalizedScheduleText.time($0.window.start))  →  \(LocalizedScheduleText.time($0.window.end))"
+            } ?? "No active nights"
+
+        return HStack(spacing: 14) {
+            Text(name)
                 .foregroundStyle(BeddyPalette.muted)
             Spacer(minLength: 8)
-            Text(scheduleWindowText)
+            Text(windowText)
                 .fontWeight(.semibold)
                 .foregroundStyle(Color(red: 219 / 255, green: 232 / 255, blue: 248 / 255))
                 .monospacedDigit()
         }
         .font(.system(size: 11))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(scheduleName), \(scheduleWindowText)")
+        .accessibilityLabel("\(name), \(windowText)")
     }
 
     private var actionGrid: some View {
@@ -393,7 +419,7 @@ struct TonightPopoverView: View {
                 Button {
                     preview()
                 } label: {
-                    Label("Hear sample", systemImage: "play.fill")
+                    Label(previewButtonLabel, systemImage: previewButtonSymbol)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(BeddySecondaryButtonStyle())
@@ -426,10 +452,10 @@ struct TonightPopoverView: View {
 
     private var progressionFooter: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(settings.progressiveMode ? "Progressive mode" : "Steady mode")
+            Text(footerModeTitle)
                 .foregroundStyle(BeddyPalette.faint)
             Spacer(minLength: 8)
-            Text(settings.progressiveMode ? "Shy  →  Insistent  →  Zombie" : settings.personality.title)
+            Text(footerModeDetail)
                 .fontWeight(.semibold)
                 .foregroundStyle(BeddyPalette.blue)
         }
@@ -476,7 +502,7 @@ struct TonightPopoverView: View {
     private var statusTitle: String {
         if scheduler.visualNudgePending { return "Waiting" }
         if settings.isMuted() { return "Paused" }
-        return scheduler.nextNudge == nil ? "At ease" : "Active"
+        return scheduler.nextNudge == nil ? "At ease" : "On duty"
     }
 
     private var statusColor: Color {
@@ -512,7 +538,14 @@ struct TonightPopoverView: View {
         if settings.isMuted() {
             return "Tonight’s reminders are taking a break"
         }
-        return "\(scheduler.nextPersonality.title) Butler · \(deliveryTitle)"
+        switch settings.nudgeDelivery {
+        case .sound:
+            return "\(scheduler.nextPersonality.title) Butler · Sound"
+        case .visual:
+            return "Persistent visual badge"
+        case .both:
+            return "\(scheduler.nextPersonality.title) Butler · Sound + badge"
+        }
     }
 
     private var nextCardSymbol: String {
@@ -521,21 +554,32 @@ struct TonightPopoverView: View {
         return "moon.zzz.fill"
     }
 
-    private var deliveryTitle: String {
+    private var previewButtonLabel: String {
         switch settings.nudgeDelivery {
-        case .sound: "Sound"
-        case .visual: "Badge"
-        case .both: "Sound + badge"
+        case .sound: "Hear sample"
+        case .visual: "Preview badge"
+        case .both: "Preview sound + badge"
         }
     }
 
-    private var scheduleName: String {
-        settings.tonightOverrideIsActive() ? "Tonight’s adjustment" : settings.primaryScheduleName
+    private var previewButtonSymbol: String {
+        settings.nudgeDelivery.includesSound ? "play.fill" : "bell.badge.fill"
     }
 
-    private var scheduleWindowText: String {
-        let calendar = Calendar.autoupdatingCurrent
-        let schedule = WeeklyBedtimeSchedule(
+    private var footerModeTitle: String {
+        if settings.nudgeDelivery == .visual { return "Visual mode" }
+        return settings.progressiveMode ? "Progressive mode" : "Steady mode"
+    }
+
+    private var footerModeDetail: String {
+        if settings.nudgeDelivery == .visual { return "Persistent badge" }
+        return settings.progressiveMode
+            ? "Shy  →  Insistent  →  Zombie"
+            : settings.personality.title
+    }
+
+    private var weeklySchedule: WeeklyBedtimeSchedule {
+        WeeklyBedtimeSchedule(
             startSeconds: settings.startSeconds,
             bedSeconds: settings.bedSeconds,
             activeWeekdays: settings.activeWeekdays,
@@ -555,16 +599,30 @@ struct TonightPopoverView: View {
                 )
             }
         )
+    }
+
+    private var schedulePresentation: (name: String, window: BedtimeWindow)? {
+        let calendar = Calendar.autoupdatingCurrent
+        let schedule = weeklySchedule
         guard
             let window = ScheduleCalculator(calendar: calendar).window(
                 containingOrAfter: Date(),
                 schedule: schedule
-            )
+            ),
+            let selection = schedule.selection(for: window.start, calendar: calendar)
         else {
-            return "No active nights"
+            return nil
         }
-        return "\(LocalizedScheduleText.time(window.start))  →  \(LocalizedScheduleText.time(window.end))"
+
+        let name =
+            switch selection {
+            case .primary: settings.primaryScheduleName
+            case .alternate: settings.alternateScheduleName
+            case .oneNightOverride: "Tonight’s adjustment"
+            }
+        return (name, window)
     }
+
 }
 
 @MainActor
@@ -678,6 +736,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
             )
             secondaryClick.buttonMask = 0x2
             button.addGestureRecognizer(secondaryClick)
+            button.setAccessibilityCustomActions([
+                NSAccessibilityCustomAction(
+                    name: "Show Commands",
+                    target: self,
+                    selector: #selector(showStatusMenuAccessibilityAction)
+                )
+            ])
         }
 
         let menu = NSMenu(title: "Beddy Butler")
@@ -750,6 +815,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         showStatusMenu(relativeTo: button)
     }
 
+    @objc private func showStatusMenuAccessibilityAction(
+        _ action: NSAccessibilityCustomAction
+    ) -> Bool {
+        guard let button = statusItem?.button else { return false }
+        statusPopover.performClose(nil)
+        showStatusMenu(relativeTo: button)
+        return true
+    }
+
     @objc private func openTonightPanel(_ sender: Any?) {
         guard let button = statusItem?.button else { return }
         refreshMenuState()
@@ -761,6 +835,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
     }
 
     private func showStatusPopover(relativeTo button: NSStatusBarButton) {
+        statusPopover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         statusPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         guard statusPopover.isShown else {
             showStatusMenu(relativeTo: button)

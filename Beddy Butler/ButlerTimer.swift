@@ -18,10 +18,39 @@ struct ScheduledNudge: Equatable, Sendable {
     let window: BedtimeWindow
 }
 
+enum WallClockDateResolver {
+    static func date(
+        seconds: Int,
+        on day: Date,
+        calendar: Calendar
+    ) -> Date? {
+        let clamped = min(max(seconds, 0), AppSettings.secondsPerDay - 1)
+        let components = DateComponents(
+            hour: clamped / 3_600,
+            minute: (clamped % 3_600) / 60,
+            second: clamped % 60
+        )
+        let searchStart = calendar.startOfDay(for: day).addingTimeInterval(-1)
+        return calendar.nextDate(
+            after: searchStart,
+            matching: components,
+            matchingPolicy: .nextTimePreservingSmallerComponents,
+            repeatedTimePolicy: .first,
+            direction: .forward
+        )
+    }
+}
+
 struct OneNightScheduleOverride: Equatable, Sendable {
     let anchorDate: Date
     let startSeconds: Int
     let bedSeconds: Int
+}
+
+enum BedtimeScheduleSelection: Equatable, Sendable {
+    case primary
+    case alternate
+    case oneNightOverride
 }
 
 struct WeeklyBedtimeSchedule: Equatable, Sendable {
@@ -79,18 +108,32 @@ struct WeeklyBedtimeSchedule: Equatable, Sendable {
     }
 
     func times(for anchorDay: Date, calendar: Calendar) -> (start: Int, bed: Int)? {
+        switch selection(for: anchorDay, calendar: calendar) {
+        case .some(.oneNightOverride):
+            guard let oneNightOverride else { return nil }
+            return (oneNightOverride.startSeconds, oneNightOverride.bedSeconds)
+        case .some(.alternate):
+            return (alternateStartSeconds, alternateBedSeconds)
+        case .some(.primary):
+            return (startSeconds, bedSeconds)
+        case nil:
+            return nil
+        }
+    }
+
+    func selection(for anchorDay: Date, calendar: Calendar) -> BedtimeScheduleSelection? {
         if let oneNightOverride,
             calendar.isDate(anchorDay, inSameDayAs: oneNightOverride.anchorDate)
         {
-            return (oneNightOverride.startSeconds, oneNightOverride.bedSeconds)
+            return .oneNightOverride
         }
 
         let weekday = calendar.component(.weekday, from: anchorDay)
         guard activeWeekdays.contains(weekday) else { return nil }
         if alternateScheduleEnabled, usesAlternateSchedule(on: anchorDay, calendar: calendar) {
-            return (alternateStartSeconds, alternateBedSeconds)
+            return .alternate
         }
-        return (startSeconds, bedSeconds)
+        return .primary
     }
 
     func usesAlternateSchedule(on anchorDay: Date, calendar: Calendar) -> Bool {
@@ -179,7 +222,11 @@ struct ScheduleCalculator: Sendable {
     }
 
     static func intervalRange(frequencyMinutes: Double) -> ClosedRange<TimeInterval> {
-        let base = min(max(frequencyMinutes, 1), 30) * 60
+        let finiteFrequency =
+            frequencyMinutes.isFinite
+            ? frequencyMinutes
+            : AppSettings.defaultFrequencyMinutes
+        let base = min(max(finiteFrequency, 1), 30) * 60
         return base...(base * 1.7)
     }
 
@@ -219,20 +266,7 @@ struct ScheduleCalculator: Sendable {
     }
 
     private func wallClockDate(seconds: Int, on day: Date) -> Date? {
-        let clamped = min(max(seconds, 0), AppSettings.secondsPerDay - 1)
-        let hour = clamped / 3_600
-        let minute = (clamped % 3_600) / 60
-        let second = clamped % 60
-
-        return calendar.date(
-            bySettingHour: hour,
-            minute: minute,
-            second: second,
-            of: day,
-            matchingPolicy: .nextTime,
-            repeatedTimePolicy: .first,
-            direction: .forward
-        )
+        WallClockDateResolver.date(seconds: seconds, on: day, calendar: calendar)
     }
 }
 
@@ -300,6 +334,7 @@ final class ButlerTimer: NSObject, ObservableObject {
 
     private var progression: ProgressiveState
     private var progressionWindowStart: Date?
+    private var scheduledWindow: BedtimeWindow?
     private(set) var timer: Timer?
 
     var canSnooze: Bool {
@@ -382,6 +417,7 @@ final class ButlerTimer: NSObject, ObservableObject {
 
         guard let nudge else {
             nextNudge = nil
+            scheduledWindow = nil
             lastEvent = "No valid bedtime window is configured."
             NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
             return
@@ -399,6 +435,7 @@ final class ButlerTimer: NSObject, ObservableObject {
 
         nextPersonality = progression.current
         nextNudge = nudge.fireDate
+        scheduledWindow = nudge.window
 
         let nextTimer = Timer(
             fireAt: nudge.fireDate,
@@ -496,8 +533,16 @@ final class ButlerTimer: NSObject, ObservableObject {
     }
 
     @objc private func timerDidFire() {
+        handleTimerFire()
+    }
+
+    func handleTimerFire() {
         let currentDate = now()
         guard !settings.isMuted(at: currentDate) else {
+            recalculate()
+            return
+        }
+        guard let scheduledWindow, scheduledWindow.contains(currentDate) else {
             recalculate()
             return
         }

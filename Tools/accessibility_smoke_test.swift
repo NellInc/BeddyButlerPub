@@ -72,11 +72,26 @@ defer {
 
 let app = AXUIElementCreateApplication(process.processIdentifier)
 let deadline = Date().addingTimeInterval(12)
+let requiredSemantics: [String: (role: String, description: String)] = [
+    "onboarding.start": (kAXButtonRole as String, "Start Beddy Butler"),
+    "tonight.override.disclosure": (kAXDisclosureTriangleRole as String, "One-night adjustment"),
+    "schedule.primary.name": (kAXTextFieldRole as String, "Primary schedule name"),
+    "schedule.alternate.enabled": (kAXCheckBoxRole as String, "Use a second schedule"),
+    "nudge.delivery": (kAXRadioGroupRole as String, "Nudge delivery"),
+    "startup.openAtLogin": (kAXCheckBoxRole as String, "Open Beddy Butler at login"),
+]
+let requiredIdentifiers = Set(requiredSemantics.keys)
 var elements: [AXUIElement] = []
+var identifiers: Set<String> = []
 repeat {
     Thread.sleep(forTimeInterval: 0.25)
     elements = descendants(of: app)
-} while elements.count < 10 && process.isRunning && Date() < deadline
+    identifiers = Set(
+        elements.compactMap {
+            attribute(kAXIdentifierAttribute as CFString, of: $0) as? String
+        }
+    )
+} while !requiredIdentifiers.isSubset(of: identifiers) && process.isRunning && Date() < deadline
 
 guard process.isRunning else {
     let data = log.fileHandleForReading.readDataToEndOfFile()
@@ -87,19 +102,6 @@ guard process.isRunning else {
     exit(1)
 }
 
-let identifiers = Set(
-    elements.compactMap {
-        attribute(kAXIdentifierAttribute as CFString, of: $0) as? String
-    }
-)
-let requiredIdentifiers: Set<String> = [
-    "onboarding.start",
-    "tonight.override.disclosure",
-    "schedule.primary.name",
-    "schedule.alternate.enabled",
-    "nudge.delivery",
-    "startup.openAtLogin",
-]
 let missing = requiredIdentifiers.subtracting(identifiers)
 
 let windowTitles: Set<String> = Set(
@@ -120,6 +122,29 @@ guard windowTitles.contains("Beddy Butler Preferences") else {
 }
 guard missing.isEmpty else {
     fputs("Missing accessibility identifiers: \(missing.sorted().joined(separator: ", "))\n", stderr)
+    exit(1)
+}
+
+var semanticFailures: [String] = []
+for (identifier, expected) in requiredSemantics {
+    guard
+        let element = elements.first(where: {
+            (attribute(kAXIdentifierAttribute as CFString, of: $0) as? String) == identifier
+        })
+    else {
+        continue
+    }
+    let role = attribute(kAXRoleAttribute as CFString, of: element) as? String
+    let description = attribute(kAXDescriptionAttribute as CFString, of: element) as? String
+    if role != expected.role || description != expected.description {
+        semanticFailures.append(
+            "\(identifier) expected \(expected.role)/\(expected.description), "
+                + "found \(role ?? "nil")/\(description ?? "nil")"
+        )
+    }
+}
+guard semanticFailures.isEmpty else {
+    fputs("Accessibility semantic failures: \(semanticFailures.sorted().joined(separator: "; "))\n", stderr)
     exit(1)
 }
 

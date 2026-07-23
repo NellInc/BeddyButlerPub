@@ -93,6 +93,57 @@ extension Notification.Name {
     static let beddyScheduleDidChange = Notification.Name("BeddyButler.scheduleDidChange")
 }
 
+/// A user-selected calendar day whose identity survives time-zone changes.
+struct LocalCalendarDate: Equatable, Sendable {
+    let year: Int
+    let month: Int
+    let day: Int
+
+    init(date: Date, calendar: Calendar = .autoupdatingCurrent) {
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        let components = gregorian.dateComponents([.year, .month, .day], from: date)
+        year = components.year ?? 1970
+        month = components.month ?? 1
+        day = components.day ?? 1
+    }
+
+    init?(storedValue: String) {
+        let components = storedValue.split(separator: "-", omittingEmptySubsequences: false)
+        guard components.count == 3,
+            let year = Int(components[0]),
+            let month = Int(components[1]),
+            let day = Int(components[2]),
+            (1...12).contains(month),
+            (1...31).contains(day)
+        else {
+            return nil
+        }
+        self.year = year
+        self.month = month
+        self.day = day
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        guard let date = self.date(calendar: gregorian) else {
+            return nil
+        }
+        let validated = gregorian.dateComponents([.year, .month, .day], from: date)
+        guard validated.year == year, validated.month == month, validated.day == day else {
+            return nil
+        }
+    }
+
+    var storedValue: String {
+        String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    func date(calendar: Calendar = .autoupdatingCurrent) -> Date? {
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        return gregorian.date(from: DateComponents(year: year, month: month, day: day))
+    }
+}
+
 /// The persisted preferences shared by the menu, preferences window, and scheduler.
 ///
 /// Start and bed times remain stored as seconds after local midnight. This preserves
@@ -123,10 +174,10 @@ final class AppSettings: ObservableObject {
     @Published private(set) var primaryScheduleName: String
     @Published private(set) var alternateScheduleName: String
     @Published private(set) var alternateSchedulePattern: AlternateSchedulePattern
-    @Published private(set) var rotationAnchorDate: Date
+    @Published private var rotationAnchorCalendarDate: LocalCalendarDate
     @Published private(set) var rotationPrimaryDays: Int
     @Published private(set) var rotationAlternateDays: Int
-    @Published private(set) var tonightOverrideDate: Date?
+    @Published private var tonightOverrideCalendarDate: LocalCalendarDate?
     @Published private(set) var tonightOverrideStartSeconds: Int
     @Published private(set) var tonightOverrideBedSeconds: Int
     @Published private(set) var notificationAlertsEnabled: Bool
@@ -135,6 +186,14 @@ final class AppSettings: ObservableObject {
     @Published private(set) var hasCompletedOnboarding: Bool
 
     private let defaults: UserDefaults
+
+    var rotationAnchorDate: Date {
+        rotationAnchorCalendarDate.date() ?? Date()
+    }
+
+    var tonightOverrideDate: Date? {
+        tonightOverrideCalendarDate?.date()
+    }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -193,8 +252,10 @@ final class AppSettings: ObservableObject {
         alternateSchedulePattern = AlternateSchedulePattern(
             storedValue: defaults.string(forKey: UserDefaultKeys.alternateSchedulePattern.rawValue)
         )
-        rotationAnchorDate = Self.startOfLocalDay(
-            defaults.object(forKey: UserDefaultKeys.rotationAnchorDate.rawValue) as? Date ?? Date()
+        rotationAnchorCalendarDate = Self.readCalendarDate(
+            key: .rotationAnchorDate,
+            from: defaults,
+            fallback: Date()
         )
         rotationPrimaryDays = Self.clampCycleDays(
             (defaults.object(forKey: UserDefaultKeys.rotationPrimaryDays.rawValue) as? NSNumber)?.intValue ?? 4
@@ -202,8 +263,10 @@ final class AppSettings: ObservableObject {
         rotationAlternateDays = Self.clampCycleDays(
             (defaults.object(forKey: UserDefaultKeys.rotationAlternateDays.rawValue) as? NSNumber)?.intValue ?? 4
         )
-        tonightOverrideDate = (defaults.object(forKey: UserDefaultKeys.tonightOverrideDate.rawValue) as? Date)
-            .map { Self.startOfLocalDay($0) }
+        tonightOverrideCalendarDate = Self.readOptionalCalendarDate(
+            key: .tonightOverrideDate,
+            from: defaults
+        )
         tonightOverrideStartSeconds = Self.readSeconds(
             key: .tonightOverrideStartTimeValue,
             from: defaults,
@@ -338,20 +401,24 @@ final class AppSettings: ObservableObject {
         announceChange()
     }
 
-    func updatePrimaryScheduleName(_ value: String) {
+    @discardableResult
+    func updatePrimaryScheduleName(_ value: String) -> String {
         let normalized = Self.readScheduleName(value, fallback: "Regular")
-        guard normalized != primaryScheduleName else { return }
+        guard normalized != primaryScheduleName else { return normalized }
         primaryScheduleName = normalized
         defaults.set(normalized, forKey: UserDefaultKeys.primaryScheduleName.rawValue)
         announceChange()
+        return normalized
     }
 
-    func updateAlternateScheduleName(_ value: String) {
+    @discardableResult
+    func updateAlternateScheduleName(_ value: String) -> String {
         let normalized = Self.readScheduleName(value, fallback: "Alternate")
-        guard normalized != alternateScheduleName else { return }
+        guard normalized != alternateScheduleName else { return normalized }
         alternateScheduleName = normalized
         defaults.set(normalized, forKey: UserDefaultKeys.alternateScheduleName.rawValue)
         announceChange()
+        return normalized
     }
 
     func updateAlternateSchedulePattern(_ value: AlternateSchedulePattern) {
@@ -361,11 +428,14 @@ final class AppSettings: ObservableObject {
         announceChange()
     }
 
-    func updateRotationAnchorDate(_ value: Date) {
-        let normalized = Self.startOfLocalDay(value)
-        guard normalized != rotationAnchorDate else { return }
-        rotationAnchorDate = normalized
-        defaults.set(normalized, forKey: UserDefaultKeys.rotationAnchorDate.rawValue)
+    func updateRotationAnchorDate(
+        _ value: Date,
+        calendar: Calendar = .autoupdatingCurrent
+    ) {
+        let normalized = LocalCalendarDate(date: value, calendar: calendar)
+        guard normalized != rotationAnchorCalendarDate else { return }
+        rotationAnchorCalendarDate = normalized
+        defaults.set(normalized.storedValue, forKey: UserDefaultKeys.rotationAnchorDate.rawValue)
         announceChange()
     }
 
@@ -389,10 +459,11 @@ final class AppSettings: ObservableObject {
         on date: Date = Date(),
         calendar: Calendar = .autoupdatingCurrent
     ) {
-        tonightOverrideDate = Self.startOfLocalDay(date, calendar: calendar)
+        let calendarDate = LocalCalendarDate(date: date, calendar: calendar)
+        tonightOverrideCalendarDate = calendarDate
         tonightOverrideStartSeconds = startSeconds
         tonightOverrideBedSeconds = bedSeconds
-        defaults.set(tonightOverrideDate, forKey: UserDefaultKeys.tonightOverrideDate.rawValue)
+        defaults.set(calendarDate.storedValue, forKey: UserDefaultKeys.tonightOverrideDate.rawValue)
         defaults.set(
             Double(tonightOverrideStartSeconds),
             forKey: UserDefaultKeys.tonightOverrideStartTimeValue.rawValue
@@ -405,8 +476,8 @@ final class AppSettings: ObservableObject {
     }
 
     func clearTonightOverride() {
-        guard tonightOverrideDate != nil else { return }
-        tonightOverrideDate = nil
+        guard tonightOverrideCalendarDate != nil else { return }
+        tonightOverrideCalendarDate = nil
         defaults.removeObject(forKey: UserDefaultKeys.tonightOverrideDate.rawValue)
         announceChange()
     }
@@ -428,7 +499,9 @@ final class AppSettings: ObservableObject {
     }
 
     func clearExpiredTonightOverride(at date: Date = Date(), calendar: Calendar = .autoupdatingCurrent) {
-        guard tonightOverrideDate != nil, !tonightOverrideIsActive(at: date, calendar: calendar) else {
+        guard tonightOverrideCalendarDate != nil,
+            !tonightOverrideIsActive(at: date, calendar: calendar)
+        else {
             return
         }
         clearTonightOverride()
@@ -438,25 +511,20 @@ final class AppSettings: ObservableObject {
         at date: Date = Date(),
         calendar: Calendar = .autoupdatingCurrent
     ) -> Bool {
-        guard let tonightOverrideDate else { return false }
+        guard let tonightOverrideDate = tonightOverrideCalendarDate?.date(calendar: calendar) else {
+            return false
+        }
         let crossesMidnight = tonightOverrideBedSeconds <= tonightOverrideStartSeconds
         let endAnchor =
             crossesMidnight
             ? calendar.date(byAdding: .day, value: 1, to: tonightOverrideDate)
             : tonightOverrideDate
         guard let endAnchor else { return false }
-        let hour = tonightOverrideBedSeconds / 3_600
-        let minute = (tonightOverrideBedSeconds % 3_600) / 60
-        let second = tonightOverrideBedSeconds % 60
         guard
-            let end = calendar.date(
-                bySettingHour: hour,
-                minute: minute,
-                second: second,
-                of: endAnchor,
-                matchingPolicy: .nextTime,
-                repeatedTimePolicy: .first,
-                direction: .forward
+            let end = WallClockDateResolver.date(
+                seconds: tonightOverrideBedSeconds,
+                on: endAnchor,
+                calendar: calendar
             )
         else {
             return false
@@ -548,7 +616,10 @@ final class AppSettings: ObservableObject {
             alternateSchedulePattern.rawValue,
             forKey: UserDefaultKeys.alternateSchedulePattern.rawValue
         )
-        defaults.set(rotationAnchorDate, forKey: UserDefaultKeys.rotationAnchorDate.rawValue)
+        defaults.set(
+            rotationAnchorCalendarDate.storedValue,
+            forKey: UserDefaultKeys.rotationAnchorDate.rawValue
+        )
         defaults.set(rotationPrimaryDays, forKey: UserDefaultKeys.rotationPrimaryDays.rawValue)
         defaults.set(rotationAlternateDays, forKey: UserDefaultKeys.rotationAlternateDays.rawValue)
         defaults.set(
@@ -559,8 +630,11 @@ final class AppSettings: ObservableObject {
             Double(tonightOverrideBedSeconds),
             forKey: UserDefaultKeys.tonightOverrideBedTimeValue.rawValue
         )
-        if let tonightOverrideDate {
-            defaults.set(tonightOverrideDate, forKey: UserDefaultKeys.tonightOverrideDate.rawValue)
+        if let tonightOverrideCalendarDate {
+            defaults.set(
+                tonightOverrideCalendarDate.storedValue,
+                forKey: UserDefaultKeys.tonightOverrideDate.rawValue
+            )
         } else {
             defaults.removeObject(forKey: UserDefaultKeys.tonightOverrideDate.rawValue)
         }
@@ -655,11 +729,13 @@ final class AppSettings: ObservableObject {
     }
 
     private static func clampFrequency(_ value: Double) -> Double {
-        min(max(value, 1), 30)
+        guard value.isFinite else { return defaultFrequencyMinutes }
+        return min(max(value, 1), 30)
     }
 
     private static func clampVolume(_ value: Double) -> Double {
-        min(max(value, 0), 1)
+        guard value.isFinite else { return defaultVoiceVolume }
+        return min(max(value, 0), 1)
     }
 
     private static func clampVisualNudgeCount(_ value: Int) -> Int {
@@ -675,11 +751,34 @@ final class AppSettings: ObservableObject {
         return String((trimmed.isEmpty ? fallback : trimmed).prefix(30))
     }
 
-    private static func startOfLocalDay(
-        _ date: Date,
+    private static func readCalendarDate(
+        key: UserDefaultKeys,
+        from defaults: UserDefaults,
+        fallback: Date,
         calendar: Calendar = .autoupdatingCurrent
-    ) -> Date {
-        calendar.startOfDay(for: date)
+    ) -> LocalCalendarDate {
+        if let stored = defaults.string(forKey: key.rawValue),
+            let calendarDate = LocalCalendarDate(storedValue: stored)
+        {
+            return calendarDate
+        }
+        if let legacyDate = defaults.object(forKey: key.rawValue) as? Date {
+            return LocalCalendarDate(date: legacyDate, calendar: calendar)
+        }
+        return LocalCalendarDate(date: fallback, calendar: calendar)
+    }
+
+    private static func readOptionalCalendarDate(
+        key: UserDefaultKeys,
+        from defaults: UserDefaults,
+        calendar: Calendar = .autoupdatingCurrent
+    ) -> LocalCalendarDate? {
+        if let stored = defaults.string(forKey: key.rawValue) {
+            return LocalCalendarDate(storedValue: stored)
+        }
+        return (defaults.object(forKey: key.rawValue) as? Date).map {
+            LocalCalendarDate(date: $0, calendar: calendar)
+        }
     }
 
     private static func readActiveWeekdays(from defaults: UserDefaults) -> Set<Int> {

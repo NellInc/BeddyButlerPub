@@ -8,19 +8,10 @@ struct WallClockTime {
         relativeTo referenceDate: Date = Date(),
         calendar: Calendar = .autoupdatingCurrent
     ) -> Date {
-        let clamped = min(max(seconds, 0), AppSettings.secondsPerDay - 1)
-        let hour = clamped / 3_600
-        let minute = (clamped % 3_600) / 60
-        let second = clamped % 60
-
-        return calendar.date(
-            bySettingHour: hour,
-            minute: minute,
-            second: second,
-            of: referenceDate,
-            matchingPolicy: .nextTime,
-            repeatedTimePolicy: .first,
-            direction: .forward
+        WallClockDateResolver.date(
+            seconds: seconds,
+            on: referenceDate,
+            calendar: calendar
         ) ?? referenceDate
     }
 
@@ -355,7 +346,6 @@ final class PreferencesWindowController: NSWindowController {
     func present() {
         guard let window else { return }
         NSApp.activate(ignoringOtherApps: true)
-        window.center()
         showWindow(nil)
         window.makeKeyAndOrderFront(nil)
     }
@@ -400,14 +390,15 @@ private struct AnimatedButlerArtwork: View {
     private var artwork: some View {
         switch presentation {
         case .header:
-            ButlerRiggedView(
-                personality: personality,
-                motionEnabled: false,
-                isVisible: isWithinViewport,
-                contentMode: .upperBody,
-                intensity: 0.68
-            )
-            .frame(width: 108, height: 96)
+            Image(personality.assetName)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFill()
+                .frame(width: 108, height: 96, alignment: .top)
+                .scaleEffect(1.42, anchor: .top)
+                .frame(width: 108, height: 96, alignment: .top)
+                .clipped()
+                .drawingGroup(opaque: false, colorMode: .linear)
         case .preview:
             ButlerRiggedView(
                 personality: personality,
@@ -434,6 +425,55 @@ private struct AnimatedButlerArtwork: View {
         case .insistent: BeddyPalette.warm
         case .zombie: BeddyPalette.zombie
         }
+    }
+}
+
+private struct ScheduleNameTextField: View {
+    let placeholder: String
+    let value: String
+    let accessibilityLabel: String
+    let accessibilityIdentifier: String
+    let commit: (String) -> String
+
+    @State private var draft: String
+    @FocusState private var isFocused: Bool
+
+    init(
+        placeholder: String,
+        value: String,
+        accessibilityLabel: String,
+        accessibilityIdentifier: String,
+        commit: @escaping (String) -> String
+    ) {
+        self.placeholder = placeholder
+        self.value = value
+        self.accessibilityLabel = accessibilityLabel
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.commit = commit
+        _draft = State(initialValue: value)
+    }
+
+    var body: some View {
+        TextField(placeholder, text: $draft)
+            .textFieldStyle(.roundedBorder)
+            .focused($isFocused)
+            .onSubmit(commitDraft)
+            .onChange(of: isFocused) { focused in
+                if !focused {
+                    commitDraft()
+                }
+            }
+            .onChange(of: value) { updatedValue in
+                if !isFocused {
+                    draft = updatedValue
+                }
+            }
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func commitDraft() {
+        draft = commit(draft)
     }
 }
 
@@ -723,10 +763,14 @@ struct PreferencesView: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     Text("Schedule name")
-                    TextField("Regular", text: primaryScheduleNameBinding)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 240)
-                        .accessibilityIdentifier("schedule.primary.name")
+                    ScheduleNameTextField(
+                        placeholder: "Regular",
+                        value: settings.primaryScheduleName,
+                        accessibilityLabel: "Primary schedule name",
+                        accessibilityIdentifier: "schedule.primary.name",
+                        commit: settings.updatePrimaryScheduleName
+                    )
+                    .frame(maxWidth: 240)
                     Spacer()
                 }
 
@@ -824,10 +868,14 @@ struct PreferencesView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("Schedule name")
-                            TextField("Alternate", text: alternateScheduleNameBinding)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(maxWidth: 240)
-                                .accessibilityIdentifier("schedule.alternate.name")
+                            ScheduleNameTextField(
+                                placeholder: "Alternate",
+                                value: settings.alternateScheduleName,
+                                accessibilityLabel: "Alternate schedule name",
+                                accessibilityIdentifier: "schedule.alternate.name",
+                                commit: settings.updateAlternateScheduleName
+                            )
+                            .frame(maxWidth: 240)
                             Spacer()
                         }
 
@@ -841,7 +889,7 @@ struct PreferencesView: View {
 
                         if settings.alternateSchedulePattern == .selectedWeekdays {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("(settings.alternateScheduleName) nights")
+                                Text(Self.alternateScheduleNightsTitle(settings.alternateScheduleName))
                                     .font(.callout.weight(.medium))
 
                                 HStack(spacing: 7) {
@@ -858,7 +906,10 @@ struct PreferencesView: View {
                                         .buttonStyle(.bordered)
                                         .tint(selected ? BeddyPalette.blue : BeddyPalette.faint)
                                         .accessibilityLabel(
-                                            "(settings.alternateScheduleName) schedule on (choice.fullLabel) nights"
+                                            Self.alternateWeekdayAccessibilityLabel(
+                                                scheduleName: settings.alternateScheduleName,
+                                                weekdayName: choice.fullLabel
+                                            )
                                         )
                                         .accessibilityValue(selected ? "Selected" : "Not selected")
                                         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -887,7 +938,7 @@ struct PreferencesView: View {
                                 Text("Rotating cycle")
                                     .font(.callout.weight(.medium))
 
-                                HStack(spacing: 18) {
+                                VStack(alignment: .leading, spacing: 10) {
                                     Stepper(
                                         "\(settings.primaryScheduleName): \(settings.rotationPrimaryDays) days",
                                         value: rotationPrimaryDaysBinding,
@@ -1071,12 +1122,19 @@ struct PreferencesView: View {
                         .accessibilityHint("Adds a local visual alert with acknowledge, snooze, and pause actions")
 
                     if notificationManager.authorizationState == .denied {
-                        Label(
-                            "Notification permission is disabled in System Settings. The menu-bar badge still works.",
-                            systemImage: "exclamationmark.triangle.fill"
-                        )
-                        .font(.callout)
-                        .foregroundStyle(.orange)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label(
+                                "Notification permission is disabled in System Settings. The menu-bar badge still works.",
+                                systemImage: "exclamationmark.triangle.fill"
+                            )
+                            .font(.callout)
+                            .foregroundStyle(.orange)
+
+                            Button("Open Notification Settings") {
+                                notificationManager.openSystemSettings()
+                            }
+                            .accessibilityIdentifier("nudge.openNotificationSettings")
+                        }
                     }
 
                     if let error = notificationManager.lastError {
@@ -1172,6 +1230,17 @@ struct PreferencesView: View {
         }
         .frame(minWidth: 34)
         .contentShape(Rectangle())
+    }
+
+    static func alternateScheduleNightsTitle(_ scheduleName: String) -> String {
+        "\(scheduleName) nights"
+    }
+
+    static func alternateWeekdayAccessibilityLabel(
+        scheduleName: String,
+        weekdayName: String
+    ) -> String {
+        "\(scheduleName) schedule on \(weekdayName) nights"
     }
 
     private var headerStatusTitle: String {
@@ -1361,20 +1430,6 @@ struct PreferencesView: View {
                     settings.clearTonightOverride()
                 }
             }
-        )
-    }
-
-    private var primaryScheduleNameBinding: Binding<String> {
-        Binding(
-            get: { settings.primaryScheduleName },
-            set: { settings.updatePrimaryScheduleName($0) }
-        )
-    }
-
-    private var alternateScheduleNameBinding: Binding<String> {
-        Binding(
-            get: { settings.alternateScheduleName },
-            set: { settings.updateAlternateScheduleName($0) }
         )
     }
 
