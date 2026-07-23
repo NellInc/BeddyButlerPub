@@ -402,7 +402,7 @@ private struct AnimatedButlerArtwork: View {
         case .header:
             ButlerRiggedView(
                 personality: personality,
-                motionEnabled: !reduceMotion && isWithinViewport,
+                motionEnabled: false,
                 isVisible: isWithinViewport,
                 contentMode: .upperBody,
                 intensity: 0.68
