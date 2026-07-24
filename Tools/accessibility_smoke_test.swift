@@ -218,6 +218,7 @@ let popoverIdentifiers: Set<String> = [
     "popover.snooze",
     "popover.pause",
     "popover.preferences",
+    "popover.about",
     "popover.quit",
 ]
 var visiblePopoverIdentifiers: Set<String> = []
@@ -258,6 +259,45 @@ guard missingPopoverControls.isEmpty else {
         "Missing Tonight-panel controls: \(missingPopoverControls.sorted().joined(separator: ", "))\n",
         stderr
     )
+    finish(1)
+}
+
+guard
+    let aboutButton = descendants(of: app).first(where: {
+        (attribute(kAXIdentifierAttribute as CFString, of: $0) as? String) == "popover.about"
+    }),
+    AXUIElementPerformAction(aboutButton, kAXPressAction as CFString) == .success
+else {
+    fputs("The Tonight-panel About control could not be activated.\n", stderr)
+    finish(1)
+}
+
+let requiredCredit = "Design and engineering by Nell Watson and David Garces."
+let requiredQACredit = "QA by Filip Alimpić"
+var aboutStrings: Set<String> = []
+let aboutDeadline = Date().addingTimeInterval(4)
+repeat {
+    Thread.sleep(forTimeInterval: 0.2)
+    aboutStrings = Set(
+        descendants(of: app).flatMap { element in
+            [
+                attribute(kAXTitleAttribute as CFString, of: element) as? String,
+                attribute(kAXValueAttribute as CFString, of: element) as? String,
+                attribute(kAXDescriptionAttribute as CFString, of: element) as? String,
+            ].compactMap { $0 }
+        }
+    )
+} while !(aboutStrings.contains(where: { $0.contains(requiredCredit) })
+    && aboutStrings.contains(where: { $0.contains(requiredQACredit) }))
+    && process.isRunning && Date() < aboutDeadline
+
+guard aboutStrings.contains(where: { $0.contains(requiredCredit) }) else {
+    fputs("The About panel did not expose the required design and engineering credit.\n", stderr)
+    finish(1)
+}
+
+guard aboutStrings.contains(where: { $0.contains(requiredQACredit) }) else {
+    fputs("The About panel did not expose the required QA credit.\n", stderr)
     finish(1)
 }
 

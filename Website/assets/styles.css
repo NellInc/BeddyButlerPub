@@ -118,7 +118,7 @@ a.button-quiet:hover { background: rgba(255,255,255,.1); border-color: var(--lin
 .trust-row span { color: var(--blue); margin-right: 5px; }
 
 .hero-visual { min-height: 640px; display: grid; place-items: center; position: relative; }
-.hero-icon { position: relative; z-index: 2; width: min(610px, 46vw); filter: drop-shadow(0 44px 60px rgba(0,0,0,.45)); transform: rotate(2deg); animation: hover 8s ease-in-out infinite; }
+.hero-icon { position: relative; z-index: 2; width: min(610px, 46vw); border-radius:22%; filter: drop-shadow(0 44px 60px rgba(0,0,0,.45)); transform: rotate(2deg); animation: hover 8s ease-in-out infinite; }
 .moon-glow { position: absolute; width: 75%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, rgba(84,173,255,.36), rgba(66,111,210,.11) 45%, transparent 70%); filter: blur(18px); }
 @keyframes hover { 0%,100% { transform: rotate(2deg) translateY(0); } 50% { transform: rotate(.5deg) translateY(-14px); } }
 .glass-card { border: 1px solid rgba(255,255,255,.18); background: rgba(13, 27, 51, .72); box-shadow: 0 22px 60px rgba(0,0,0,.42); backdrop-filter: blur(24px) saturate(1.25); }
@@ -316,7 +316,7 @@ footer > p { text-align:right; }
 .legal-lede { margin:25px 0 55px; font-size:20px; }
 .legal-main h2 { margin:52px 0 12px; font-size:25px; letter-spacing:-.025em; }
 .legal-main h3 { margin:30px 0 8px; font-size:18px; }
-.legal-main ul { padding-left:22px; }
+.legal-main ul, .legal-main ol { padding-left:22px; }
 .legal-main li { margin:7px 0; }
 .legal-main a { color:var(--blue-bright); }
 .legal-note { margin:38px 0; padding:22px 24px; border:1px solid var(--line); border-radius:16px; background:var(--glass); }

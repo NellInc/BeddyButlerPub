@@ -61,7 +61,7 @@ python3 Tools/prepare_audio.py --check
 Create a signed local beta with the installed Developer ID identity:
 
 ```sh
-Tools/release.sh 2.0 610 --local
+Tools/release.sh 2.0.1 611 --local
 ```
 
 For a notarized release, first store a `beddy-butler-notary` notarytool Keychain profile, then omit `--local`. The release script notarizes and staples the app, builds and notarizes a drag-to-Applications disk image, creates a ZIP, and writes SHA-256 checksums. The rights holder has confirmed publication and asset rights.
@@ -69,8 +69,8 @@ For a notarized release, first store a `beddy-butler-notary` notarytool Keychain
 Prepare a Mac App Store build:
 
 ```sh
-Tools/app_store_release.sh --preflight 2.0 610
-Tools/app_store_release.sh --upload 2.0 610
+Tools/app_store_release.sh --preflight 2.0.1 611
+Tools/app_store_release.sh --upload 2.0.1 611
 ```
 
 Release scripts require a clean Git working tree and rerun formatting, metadata,
@@ -118,7 +118,9 @@ Beddy Butler is an original work first created in 2016. The older Beddy Butler r
 
 ## Credits
 
-Beddy Butler was designed and engineered by Nell Watson and David Garces.
+Design and engineering by Nell Watson and David Garces.
+
+QA by Filip Alimpić
 
 ## License
 

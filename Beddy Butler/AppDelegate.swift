@@ -270,6 +270,7 @@ struct TonightPopoverView: View {
     @ObservedObject var scheduler: ButlerTimer
 
     let openPreferences: () -> Void
+    let openAbout: () -> Void
     let preview: () -> Void
     let acknowledge: () -> Void
     let snooze: () -> Void
@@ -479,6 +480,14 @@ struct TonightPopoverView: View {
 
             Spacer()
 
+            Button("About") {
+                openAbout()
+            }
+            .accessibilityLabel("About Beddy Butler")
+            .accessibilityIdentifier("popover.about")
+
+            Spacer()
+
             Button("Quit") {
                 quit()
             }
@@ -650,6 +659,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         loginItemManager: loginItemManager,
         notificationManager: notificationManager
     )
+    private lazy var aboutWindowController = AboutWindowController()
     private lazy var statusPopover: NSPopover = {
         let popover = NSPopover()
         popover.behavior = .transient
@@ -660,6 +670,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
                 settings: settings,
                 scheduler: scheduler,
                 openPreferences: { [weak self] in self?.showPreferences(nil) },
+                openAbout: { [weak self] in self?.showAbout(nil) },
                 preview: { [weak self] in self?.previewButler(nil) },
                 acknowledge: { [weak self] in self?.acknowledgeVisualNudge(nil) },
                 snooze: { [weak self] in self?.snooze(nil) },
@@ -685,15 +696,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         configureStatusItem()
         registerForSystemChanges()
 
-        if !settings.hasCompletedOnboarding
-            || ProcessInfo.processInfo.environment["BEDDY_BUTLER_OPEN_PREFERENCES"] == "1"
+        let environment = ProcessInfo.processInfo.environment
+        if environment["BEDDY_BUTLER_OPEN_ABOUT"] == "1" {
+            DispatchQueue.main.async { [weak self] in
+                self?.showAbout(nil)
+            }
+        } else if !settings.hasCompletedOnboarding
+            || environment["BEDDY_BUTLER_OPEN_PREFERENCES"] == "1"
         {
             DispatchQueue.main.async { [weak self] in
                 self?.showPreferences(nil)
             }
         }
 
-        if let outputDirectory = ProcessInfo.processInfo.environment["BEDDY_BUTLER_CAPTURE_UI_DIR"] {
+        if let outputDirectory = environment["BEDDY_BUTLER_CAPTURE_UI_DIR"] {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 self?.captureUI(to: URL(fileURLWithPath: outputDirectory, isDirectory: true))
             }
@@ -1050,8 +1066,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
     }
 
     @objc private func showAbout(_ sender: Any?) {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.orderFrontStandardAboutPanel(options: ApplicationMetadata.aboutOptions)
+        statusPopover.performClose(nil)
+        aboutWindowController.present()
     }
 
     @objc private func openWebsite(_ sender: Any?) {

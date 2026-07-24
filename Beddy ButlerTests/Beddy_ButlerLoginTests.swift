@@ -29,15 +29,13 @@ private struct TestLoginError: LocalizedError {
 
 final class BeddyButlerLoginTests: XCTestCase {
     func testAboutPanelCreditsBothDesignersAndEngineers() throws {
-        let credits = try XCTUnwrap(
-            ApplicationMetadata.aboutOptions[.credits] as? NSAttributedString
+        XCTAssertEqual(
+            ApplicationMetadata.creditLine,
+            "Design and engineering by Nell Watson and David Garces."
         )
-
-        XCTAssertTrue(
-            credits.string.contains(
-                "Designed and engineered by Nell Watson and David Garces."
-            )
-        )
+        XCTAssertEqual(ApplicationMetadata.qaCreditLine, "QA by Filip Alimpić")
+        XCTAssertEqual(ApplicationMetadata.versionDescription, "Version 2.0.1 · Build 611")
+        XCTAssertEqual(ApplicationMetadata.copyrightLine, "© 2015–2026 Nell Watson Inc.")
     }
 
     func testSystemStatusesMapToPresentationState() {
