@@ -2,6 +2,12 @@
 
 Beddy Butler is an original macOS menu bar companion, first released in 2016 and now rebuilt in Swift 6. It nudges you toward bed with increasingly persuasive voice reminders, visual reminders, or both. It is completely free.
 
+**Current source and App Review submission:** Beddy Butler 2.0.1 (build 611)
+
+**Design and engineering:** Nell Watson and David Garces
+
+**QA:** Filip Alimpić
+
 The current edition preserves the original artwork and all 91 source recordings while replacing the obsolete storyboard, custom double slider, timer arithmetic, login item API, mutable build-number script, and fragile tests.
 
 ## Features
@@ -115,12 +121,6 @@ The source recordings are stored unchanged in `Audio Sources/Originals`. `Tools/
 ## Project history
 
 Beddy Butler is an original work first created in 2016. The older Beddy Butler repositories preserve earlier iterations and experiments within the same project. See `REVIVAL_NOTES.md`, `PERFECTION_PLAN.md`, and the workspace-level `REPOSITORY_MAP.md` for the full collation and product-quality plan.
-
-## Credits
-
-Design and engineering by Nell Watson and David Garces.
-
-QA by Filip Alimpić
 
 ## License
 
