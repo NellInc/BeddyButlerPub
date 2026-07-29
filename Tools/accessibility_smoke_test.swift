@@ -273,7 +273,7 @@ else {
 }
 
 let requiredCredit = "Design and engineering by Nell Watson and David Garces."
-let requiredQACredit = "QA by Filip Alimpić"
+let requiredQACredit = "QA by Filip Alimpić."
 var aboutStrings: Set<String> = []
 let aboutDeadline = Date().addingTimeInterval(4)
 repeat {

@@ -4,7 +4,7 @@ import SwiftUI
 
 enum ApplicationMetadata {
     static let creditLine = "Design and engineering by Nell Watson and David Garces."
-    static let qaCreditLine = "QA by Filip Alimpić"
+    static let qaCreditLine = "QA by Filip Alimpić."
     static let copyrightLine = "© 2015–2026 Nell Watson Inc."
 
     static var displayName: String {

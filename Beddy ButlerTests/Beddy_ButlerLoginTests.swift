@@ -33,7 +33,7 @@ final class BeddyButlerLoginTests: XCTestCase {
             ApplicationMetadata.creditLine,
             "Design and engineering by Nell Watson and David Garces."
         )
-        XCTAssertEqual(ApplicationMetadata.qaCreditLine, "QA by Filip Alimpić")
+        XCTAssertEqual(ApplicationMetadata.qaCreditLine, "QA by Filip Alimpić.")
         XCTAssertEqual(ApplicationMetadata.versionDescription, "Version 2.0.1 · Build 611")
         XCTAssertEqual(ApplicationMetadata.copyrightLine, "© 2015–2026 Nell Watson Inc.")
     }

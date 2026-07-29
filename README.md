@@ -4,9 +4,9 @@ Beddy Butler is an original macOS menu bar companion, first released in 2016 and
 
 **Current source and App Review submission:** Beddy Butler 2.0.1 (build 611)
 
-**Design and engineering:** Nell Watson and David Garces
+**Design and engineering by Nell Watson and David Garces.**
 
-**QA:** Filip Alimpić
+**QA by Filip Alimpić.**
 
 The current edition preserves the original artwork and all 91 source recordings while replacing the obsolete storyboard, custom double slider, timer arithmetic, login item API, mutable build-number script, and fragile tests.
 
