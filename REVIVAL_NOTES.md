@@ -1,13 +1,13 @@
 # Beddy Butler revival notes
 
-## Working line
+## Revival working line at the time of the rebuild
 
 - Folder: `Beddy Butler Revision`
-- Branch: `revival/swift6-modernization`
+- Branch used for the rebuild: `revival/swift6-modernization`
 - Base: `NellInc/beddybutlerpub`
 - Behavioral donor: `NellInc/beddybutler`
 
-The historical repositories remain separate so their source and commit histories are still available for comparison.
+The active local checkout is now `master` at the time of this improvement programme. The historical repositories remain separate so their source and commit histories are still available for comparison.
 
 ## What was folded into the Swift 6 revision
 
@@ -43,6 +43,8 @@ The donor repository's useful default-branch behavior is represented here:
 The unmerged `feedback_feature` branch was not transplanted. It coupled a feedback window to local logging and email-era behavior, and it was never part of the product's default branch. A future feedback feature should be designed with an explicit destination, privacy statement, offline behavior, and accessibility requirements.
 
 ## Product-quality pass completed
+
+This section records the July 2026 candidate. Its machine, signing, runtime, and human evidence does not transfer automatically to later source, asset, metadata, or signing changes.
 
 The post-revival pass adds a fresh-install welcome state, legacy-aware onboarding migration, an above-the-fold Tonight dashboard, a compact menu-bar Tonight panel, a 30-minute snooze with exact resume, pause and resume controls, active nights, named primary and second schedules, selected-weekday or rotating-cycle assignment, and a one-night adjustment. It also adds adjustable voice volume, nonrepeating shuffled clips, larger original character artwork, clearer menu commands, a dynamic menu-bar tooltip, an adaptive SF Symbol menu-bar icon, persistent counted visual nudges for deaf and situational accessibility, optional silent local notifications with actions, a modern full application icon, spoken accessibility announcements, locale-tested schedule times, and explicit accessibility metadata. The neutral second-schedule model supports religious observance, shift work, weekends, and other recurring routines, while existing Friday and Saturday settings migrate automatically. Users can choose sound, visual, or combined delivery. The complete rationale, user journey, measurable acceptance criteria, and release evidence plan live in `PERFECTION_PLAN.md`.
 

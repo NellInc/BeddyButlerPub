@@ -1,0 +1,57 @@
+name: Accessibility report
+description: Report a VoiceOver, keyboard, contrast, reduced motion, or notification accessibility issue.
+title: "[Accessibility]: "
+labels: [accessibility]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping make Beddy Butler easier to use. Please omit private bedtime details you do not want to share publicly.
+  - type: input
+    id: version
+    attributes:
+      label: Beddy Butler version
+      placeholder: For example, 2.0.1 (611), as shown in About
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: For example, macOS 26.0
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - VoiceOver
+        - Keyboard navigation
+        - Contrast or color
+        - Reduce Motion
+        - Reduce Transparency
+        - Notifications
+        - Menu bar or Tonight popover
+        - Preferences window
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What was difficult or inaccessible?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What would have worked better?
+    validations:
+      required: false
+  - type: textarea
+    id: assistive_tech
+    attributes:
+      label: Assistive technology or settings used
+      description: Include VoiceOver, Full Keyboard Access, contrast, motion, transparency, display, or input settings when relevant.
+    validations:
+      required: false

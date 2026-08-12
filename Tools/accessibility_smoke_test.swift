@@ -61,19 +61,69 @@ let log = Pipe()
 process.standardOutput = log
 process.standardError = log
 
+let defaultsSuitePrefix = "BeddyButler.AccessibilitySmoke."
+
+func isOwnedDefaultsSuite(_ suiteName: String) -> Bool {
+    guard suiteName.hasPrefix(defaultsSuitePrefix) else { return false }
+    return UUID(uuidString: String(suiteName.dropFirst(defaultsSuitePrefix.count))) != nil
+}
+
+@discardableResult
+func clearDefaultsSuite(named suiteName: String) -> Bool {
+    guard isOwnedDefaultsSuite(suiteName) else {
+        fputs("Refusing to clear an unexpected accessibility-smoke defaults domain.\n", stderr)
+        return false
+    }
+    let delete = Process()
+    delete.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+    delete.arguments = ["delete", suiteName]
+    delete.standardOutput = FileHandle.nullDevice
+    delete.standardError = FileHandle.nullDevice
+    do {
+        try delete.run()
+    } catch {
+        fputs("Accessibility-smoke defaults cleanup failed: \(error.localizedDescription)\n", stderr)
+        return false
+    }
+    delete.waitUntilExit()
+    guard delete.terminationStatus == 0 else {
+        fputs("Accessibility-smoke defaults cleanup command failed.\n", stderr)
+        return false
+    }
+
+    Thread.sleep(forTimeInterval: 0.2)
+    let preferenceFile = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Preferences", isDirectory: true)
+        .appendingPathComponent("\(suiteName).plist")
+    guard FileManager.default.fileExists(atPath: preferenceFile.path) else { return true }
+    do {
+        // The child is terminated before cleanup, and the UUID-qualified suite
+        // belongs solely to this probe. Remove any cfprefsd file left behind by
+        // the domain deletion, including the expected defaults the app seeded.
+        try FileManager.default.removeItem(at: preferenceFile)
+        return !FileManager.default.fileExists(atPath: preferenceFile.path)
+    } catch {
+        fputs("Accessibility-smoke defaults cleanup failed: \(error.localizedDescription)\n", stderr)
+        return false
+    }
+}
+
 try process.run()
-func cleanUp() {
+var cleanupCompleted = false
+func cleanUp() -> Bool {
+    if cleanupCompleted { return true }
     if process.isRunning {
         process.terminate()
         process.waitUntilExit()
     }
-    UserDefaults(suiteName: defaultsSuite)?.removePersistentDomain(forName: defaultsSuite)
+    cleanupCompleted = clearDefaultsSuite(named: defaultsSuite)
+    return cleanupCompleted
 }
-defer { cleanUp() }
+defer { _ = cleanUp() }
 
 func finish(_ status: Int32) -> Never {
-    cleanUp()
-    exit(status)
+    let cleanupSucceeded = cleanUp()
+    exit(status == 0 && !cleanupSucceeded ? 1 : status)
 }
 
 let app = AXUIElementCreateApplication(process.processIdentifier)
@@ -85,6 +135,8 @@ let requiredSemantics: [String: (role: String, description: String)] = [
     "schedule.alternate.enabled": (kAXCheckBoxRole as String, "Use a second schedule"),
     "nudge.delivery": (kAXRadioGroupRole as String, "Nudge delivery"),
     "startup.openAtLogin": (kAXCheckBoxRole as String, "Open Beddy Butler at login"),
+    "startup.replayOnboarding": (kAXButtonRole as String, "Show Welcome Guide"),
+    "startup.restoreDefaults": (kAXButtonRole as String, "Restore Recommended Defaults…"),
 ]
 let requiredIdentifiers = Set(requiredSemantics.keys)
 var elements: [AXUIElement] = []
@@ -301,6 +353,9 @@ guard aboutStrings.contains(where: { $0.contains(requiredQACredit) }) else {
     finish(1)
 }
 
+guard cleanUp() else {
+    exit(1)
+}
 print(
     "Accessibility smoke passed: \(elements.count) elements, "
         + "\(requiredIdentifiers.count + popoverIdentifiers.count) required controls"

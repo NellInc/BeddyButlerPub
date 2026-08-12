@@ -127,10 +127,20 @@ def preserve_originals() -> None:
             shutil.copy2(sound, destination)
 
 
-def build_clip(source: Path, destination: Path, start: float, end: float | None) -> dict[str, object]:
+def build_clip(
+    source: Path, destination: Path, start: float, end: float | None
+) -> dict[str, object]:
     with tempfile.TemporaryDirectory(prefix="beddy-audio-") as temporary:
         wave = Path(temporary) / "segment.wav"
-        arguments = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(source)]
+        arguments = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(source),
+        ]
         filter_parts = [f"atrim=start={start}"]
         if end is not None:
             filter_parts[0] += f":end={end}"
@@ -219,9 +229,13 @@ def verify_release() -> None:
     if actual_names != expected_names:
         missing = sorted(expected_names - actual_names)
         unexpected = sorted(actual_names - expected_names)
-        raise SystemExit(f"Release clip set mismatch. Missing: {missing}; unexpected: {unexpected}")
+        raise SystemExit(
+            f"Release clip set mismatch. Missing: {missing}; unexpected: {unexpected}"
+        )
     if set(reported_outputs) != expected_names:
-        raise SystemExit("The processing report does not describe the exact release clip set")
+        raise SystemExit(
+            "The processing report does not describe the exact release clip set"
+        )
 
     for source in source_files:
         if reported_sources.get(source.name) != sha256(source):
@@ -296,14 +310,14 @@ def build_release() -> None:
             "maximum_zombie_duration_seconds": 10,
             "method": "linear gain only; original dynamics retained",
         },
-        "sources": {
-            path.name: sha256(path) for path in source_files
-        },
+        "sources": {path.name: sha256(path) for path in source_files},
         "outputs": report,
     }
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     REPORT.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    print(f"Built {len(report)} release clips from {len(source_files)} preserved originals")
+    print(
+        f"Built {len(report)} release clips from {len(source_files)} preserved originals"
+    )
 
 
 def main() -> None:

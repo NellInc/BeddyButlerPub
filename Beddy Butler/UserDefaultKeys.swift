@@ -567,6 +567,46 @@ final class AppSettings: ObservableObject {
         announceChange()
     }
 
+    func replayOnboarding() {
+        guard hasCompletedOnboarding else { return }
+        hasCompletedOnboarding = false
+        defaults.set(0, forKey: UserDefaultKeys.onboardingVersion.rawValue)
+        announceChange()
+    }
+
+    func restoreRecommendedDefaults(calendar: Calendar = .autoupdatingCurrent) {
+        startSeconds = Self.defaultStartSeconds
+        bedSeconds = Self.defaultBedSeconds
+        frequencyMinutes = Self.defaultFrequencyMinutes
+        personality = .shy
+        progressiveMode = false
+        mutedUntil = nil
+        voiceVolume = Self.defaultVoiceVolume
+        nudgeDelivery = .sound
+        activeWeekdays = Set(1...7)
+        alternateScheduleEnabled = false
+        alternateScheduleWeekdays = [6, 7]
+        alternateStartSeconds = Self.defaultStartSeconds
+        alternateBedSeconds = Self.defaultBedSeconds
+        primaryScheduleName = "Regular"
+        alternateScheduleName = "Alternate"
+        alternateSchedulePattern = .selectedWeekdays
+        rotationAnchorCalendarDate = LocalCalendarDate(date: Date(), calendar: calendar)
+        rotationPrimaryDays = 4
+        rotationAlternateDays = 4
+        tonightOverrideCalendarDate = nil
+        tonightOverrideStartSeconds = Self.defaultStartSeconds
+        tonightOverrideBedSeconds = Self.defaultBedSeconds
+        notificationAlertsEnabled = false
+        pendingVisualNudgeCount = 0
+        lastVisualNudgeAt = nil
+
+        defaults.removeObject(forKey: UserDefaultKeys.mutedUntil.rawValue)
+        defaults.removeObject(forKey: UserDefaultKeys.lastVisualNudgeAt.rawValue)
+        persistAll()
+        announceChange()
+    }
+
     func mute(until date: Date) {
         mutedUntil = date
         defaults.set(date, forKey: UserDefaultKeys.mutedUntil.rawValue)

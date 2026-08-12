@@ -5,6 +5,43 @@ import XCTest
 @testable import Beddy_Butler
 
 final class BeddyButlerWallClockTests: XCTestCase {
+    func testNativeSnapshotValidationRejectsAnAllBlackFrame() throws {
+        let bitmap = try makeSolidBitmap(red: 0, green: 0, blue: 0)
+        XCTAssertFalse(NativeSnapshotValidation.hasVisibleContent(bitmap))
+    }
+
+    func testNativeSnapshotValidationAcceptsTheDarkInterfaceBackdrop() throws {
+        let bitmap = try makeSolidBitmap(red: 6, green: 17, blue: 38)
+        XCTAssertTrue(NativeSnapshotValidation.hasVisibleContent(bitmap))
+    }
+
+    private func makeSolidBitmap(red: UInt8, green: UInt8, blue: UInt8) throws
+        -> NSBitmapImageRep
+    {
+        let width = 16
+        let height = 16
+        var pixels = [UInt8]()
+        pixels.reserveCapacity(width * height * 4)
+        for _ in 0..<(width * height) {
+            pixels.append(contentsOf: [red, green, blue, 255])
+        }
+        let image = try pixels.withUnsafeMutableBytes { buffer in
+            let context = try XCTUnwrap(
+                CGContext(
+                    data: buffer.baseAddress,
+                    width: width,
+                    height: height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: width * 4,
+                    space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                )
+            )
+            return try XCTUnwrap(context.makeImage())
+        }
+        return NSBitmapImageRep(cgImage: image)
+    }
+
     private var calendar: Calendar {
         var result = Calendar(identifier: .gregorian)
         result.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt

@@ -149,6 +149,8 @@ Complete the in-app perfection work first. Then run a small signed beta with fre
 
 ## Completion record, 22 July 2026
 
+This completion record belongs to the July 2026 candidate described below. Later source, asset, copy, metadata, or signing changes require fresh evidence and acceptance.
+
 The locally executable product and release-preparation phases are complete:
 
 * The 46-test deterministic suite passes, including active nights, named second schedules, selected-weekday and rotating-cycle patterns, one-night adjustments, legacy Friday and Saturday migration, nonrepeating audio selection, sound, persistent counted visual and combined delivery, all 103 release clips, and the 10-second Zombie ceiling.

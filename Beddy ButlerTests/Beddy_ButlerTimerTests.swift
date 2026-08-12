@@ -205,6 +205,30 @@ final class BeddyButlerTimerTests: XCTestCase {
         XCTAssertEqual(nudge.window.duration, 40 * 60)
     }
 
+    func testAutumnDSTRepeatedHourUsesFirstOccurrenceDeterministically() throws {
+        let calendar = calendar()
+        let now = date(2026, 10, 25, 0, 15, calendar: calendar)
+        let nudge = try XCTUnwrap(
+            ScheduleCalculator(calendar: calendar).nextNudge(
+                after: now,
+                interval: 5 * 60,
+                startSeconds: 1 * 3_600 + 30 * 60,
+                bedSeconds: 2 * 3_600 + 30 * 60
+            )
+        )
+
+        XCTAssertEqual(
+            calendar.dateComponents([.hour, .minute], from: nudge.window.start),
+            DateComponents(hour: 1, minute: 30)
+        )
+        XCTAssertEqual(
+            calendar.dateComponents([.hour, .minute], from: nudge.window.end),
+            DateComponents(hour: 2, minute: 30)
+        )
+        XCTAssertEqual(nudge.window.duration, 2 * 3_600)
+        XCTAssertEqual(nudge.fireDate, nudge.window.start.addingTimeInterval(5 * 60))
+    }
+
     func testInactiveNightsAreSkipped() throws {
         let calendar = calendar()
         let tuesday = date(2026, 7, 21, 20, calendar: calendar)
@@ -493,6 +517,71 @@ final class BeddyButlerTimerTests: XCTestCase {
     }
 
     @MainActor
+    func testWakeInsideWindowDeliversOneOverdueNudgeThenReschedules() throws {
+        let suiteName = "BeddyButlerWakeTimerTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let settings = AppSettings(defaults: defaults)
+        settings.updateStartSeconds(21 * 3_600)
+        settings.updateBedSeconds(23 * 3_600)
+        let currentCalendar = Calendar.autoupdatingCurrent
+        var currentDate = date(2026, 7, 21, 22, calendar: currentCalendar)
+        let audioPlayer = RecordingAudioPlayer()
+        let scheduler = ButlerTimer(
+            settings: settings,
+            audioPlayer: audioPlayer,
+            now: { currentDate },
+            intervalProvider: { $0.lowerBound },
+            escalationProvider: { 2 }
+        )
+        defer {
+            scheduler.timer?.invalidate()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        currentDate = date(2026, 7, 21, 22, 45, calendar: currentCalendar)
+        scheduler.handleTimerFire()
+
+        XCTAssertEqual(audioPlayer.playCount, 1)
+        XCTAssertEqual(
+            try XCTUnwrap(scheduler.nextNudge),
+            currentDate.addingTimeInterval(AppSettings.defaultFrequencyMinutes * 60)
+        )
+    }
+
+    @MainActor
+    func testBackwardClockCorrectionRecalculatesFromCorrectedWallTime() throws {
+        let suiteName = "BeddyButlerBackwardClockTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let settings = AppSettings(defaults: defaults)
+        settings.updateStartSeconds(21 * 3_600)
+        settings.updateBedSeconds(23 * 3_600)
+        settings.updateFrequencyMinutes(10)
+        let currentCalendar = Calendar.autoupdatingCurrent
+        var currentDate = date(2026, 7, 21, 22, 30, calendar: currentCalendar)
+        let scheduler = ButlerTimer(
+            settings: settings,
+            audioPlayer: AudioPlayer(),
+            now: { currentDate },
+            intervalProvider: { $0.lowerBound },
+            escalationProvider: { 2 }
+        )
+        defer {
+            scheduler.timer?.invalidate()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let originalNudge = try XCTUnwrap(scheduler.nextNudge)
+
+        currentDate = date(2026, 7, 21, 21, 45, calendar: currentCalendar)
+        scheduler.recalculate()
+
+        let correctedNudge = try XCTUnwrap(scheduler.nextNudge)
+        XCTAssertEqual(correctedNudge, currentDate.addingTimeInterval(10 * 60))
+        XCTAssertLessThan(correctedNudge, originalNudge)
+    }
+
+    @MainActor
     func testSnoozeResumesAtPromisedTimeInsideWindow() throws {
         let suiteName = "BeddyButlerSnoozeTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -592,5 +681,73 @@ final class BeddyButlerTimerTests: XCTestCase {
             DateComponents(day: 22, hour: 21, minute: 10)
         )
         XCTAssertEqual(scheduler.lastEvent, "Snooze reaches bedtime, so nudges are paused for tonight.")
+    }
+
+    @MainActor
+    func testFrequencyAndDeliveryEditsPreservePromisedSnoozeResume() throws {
+        let suiteName = "BeddyButlerSnoozeEditTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let settings = AppSettings(defaults: defaults)
+        settings.updateStartSeconds(21 * 3_600)
+        settings.updateBedSeconds(23 * 3_600)
+        let currentCalendar = Calendar.autoupdatingCurrent
+        let now = date(2026, 7, 21, 22, calendar: currentCalendar)
+        let scheduler = ButlerTimer(
+            settings: settings,
+            audioPlayer: AudioPlayer(),
+            now: { now },
+            intervalProvider: { $0.lowerBound },
+            escalationProvider: { 2 }
+        )
+        defer {
+            scheduler.timer?.invalidate()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        scheduler.snooze(minutes: 30)
+        settings.updateFrequencyMinutes(20)
+        settings.updateNudgeDelivery(.visual)
+
+        XCTAssertEqual(settings.mutedUntil, now.addingTimeInterval(30 * 60))
+        XCTAssertEqual(scheduler.nextNudge, now.addingTimeInterval(30 * 60))
+        XCTAssertEqual(scheduler.nextPersonality, settings.personality)
+    }
+
+    @MainActor
+    func testDisablingCurrentNightWhileSnoozedMovesToNextActiveWindow() throws {
+        let suiteName = "BeddyButlerSnoozeNightEditTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let settings = AppSettings(defaults: defaults)
+        settings.updateStartSeconds(21 * 3_600)
+        settings.updateBedSeconds(23 * 3_600)
+        settings.updateFrequencyMinutes(10)
+        let currentCalendar = Calendar.autoupdatingCurrent
+        let now = date(2026, 7, 21, 22, calendar: currentCalendar)
+        let scheduler = ButlerTimer(
+            settings: settings,
+            audioPlayer: AudioPlayer(),
+            now: { now },
+            intervalProvider: { $0.lowerBound },
+            escalationProvider: { 2 }
+        )
+        defer {
+            scheduler.timer?.invalidate()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        scheduler.snooze(minutes: 30)
+        settings.updateActiveWeekday(
+            currentCalendar.component(.weekday, from: now),
+            isActive: false
+        )
+
+        let nextNudge = try XCTUnwrap(scheduler.nextNudge)
+        XCTAssertEqual(
+            currentCalendar.dateComponents([.day, .hour, .minute], from: nextNudge),
+            DateComponents(day: 22, hour: 21, minute: 10)
+        )
+        XCTAssertGreaterThan(nextNudge, try XCTUnwrap(settings.mutedUntil))
     }
 }

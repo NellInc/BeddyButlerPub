@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Security report
+    url: https://github.com/NellInc/beddybutlerpub/security
+    about: Use GitHub private vulnerability reporting. Do not include exploit details or private data in a public issue.
+  - name: Beddy Butler support
+    url: https://www.beddybutler.com/support/
+    about: Read setup, scheduling, audio, notification, privacy, and troubleshooting guidance.
   - name: Privacy notice
     url: https://github.com/NellInc/beddybutlerpub/blob/master/PRIVACY.md
     about: Review what the app stores and transmits before filing a report.

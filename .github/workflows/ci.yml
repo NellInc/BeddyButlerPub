@@ -26,9 +26,20 @@ jobs:
           plutil -lint "Beddy Butler/PrivacyInfo.xcprivacy"
       - name: Validate formatting and static assets
         run: |
-          xcrun swift-format lint --recursive "Beddy Butler" "Beddy ButlerTests" Tools
-          python3 Tools/validate_website.py
-          python3 Tools/prepare_audio.py --check
+          mkdir -p "$RUNNER_TEMP/BeddyButlerEvidence"
+          {
+            xcrun swift-format lint --recursive "Beddy Butler" "Beddy ButlerTests" Tools
+            python3 Tools/validate_website.py
+            python3 Tools/validate_app_store_metadata.py
+            python3 Tools/check_large_files.py
+            python3 Tools/test_app_bundle_validation.py
+            python3 Tools/test_release_evidence.py
+            python3 Tools/test_publication_approval.py
+            python3 Tools/validate_publication_controls.py
+            python3 Tools/test_security_posture.py
+            python3 Tools/test_live_destinations.py
+            python3 Tools/prepare_audio.py --check
+          } 2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/static-validation.txt"
       - name: Test
         run: |
           xcodebuild test \
@@ -36,7 +47,13 @@ jobs:
             -scheme "Beddy Butler" \
             -configuration Debug \
             -derivedDataPath "$RUNNER_TEMP/BeddyButlerTests" \
-            CODE_SIGNING_ALLOWED=NO
+            -resultBundlePath "$RUNNER_TEMP/BeddyButlerTests.xcresult" \
+            -jobs 2 \
+            -parallel-testing-enabled NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            CLANG_STAT_CACHE_ENABLE=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/xctest.txt"
       - name: Analyze
         run: |
           xcodebuild analyze \
@@ -44,7 +61,11 @@ jobs:
             -scheme "Beddy Butler" \
             -configuration Debug \
             -derivedDataPath "$RUNNER_TEMP/BeddyButlerAnalyze" \
-            CODE_SIGNING_ALLOWED=NO
+            -jobs 2 \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            CLANG_STAT_CACHE_ENABLE=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/analyze.txt"
       - name: Release build
         run: |
           xcodebuild build \
@@ -53,6 +74,26 @@ jobs:
             -configuration Release \
             -destination "generic/platform=macOS" \
             -derivedDataPath "$RUNNER_TEMP/BeddyButlerRelease" \
+            -jobs 2 \
             ARCHS="arm64 x86_64" \
             ONLY_ACTIVE_ARCH=NO \
-            CODE_SIGNING_ALLOWED=NO
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            CLANG_STAT_CACHE_ENABLE=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/release-build.txt"
+          python3 Tools/validate_app_bundle.py \
+            "$RUNNER_TEMP/BeddyButlerRelease/Build/Products/Release/Beddy Butler.app" \
+            --version 2.0.1 \
+            --build 611 \
+            --require-universal \
+            2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/bundle-validation.txt"
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: beddy-butler-validation-evidence
+          path: |
+            ${{ runner.temp }}/BeddyButlerEvidence
+            ${{ runner.temp }}/BeddyButlerTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 14

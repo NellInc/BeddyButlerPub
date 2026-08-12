@@ -24,3 +24,7 @@ Each Butler is bound to an 8 by 12 deformable mesh with separate influence regio
 ## Native visual verification
 
 Set `BEDDY_BUTLER_CAPTURE_UI_DIR` when launching a development build to write exact native renders of the Preferences window and Tonight popover. The App Store screenshot generator accepts these captures through `--preferences` and `--popover`, ensuring the store presentation shows the shipping UI rather than a hand made approximation.
+
+For a candidate-bound state matrix, run `xcrun swift Tools/capture_acceptance_states.swift <executable> <new-output-directory>`. The harness uses isolated defaults domains for welcome, sound, visual, combined progressive, paused, and pending visual states. It records the exact executable and image SHA-256 hashes in `manifest.json`, rejects black or empty images, requires state diversity, refuses a pre-existing candidate process, and removes only its own isolated defaults domains. Manifest schema 2 also records each capture's evidence kind, the Preferences limitation and native-window review requirement, and the fact that the packet carries no publication authority.
+
+The preferences matrix renders the same production sections without the scroll container so the complete form is observable. Some AppKit-backed controls can display unavailable placeholder tiles when rendered without a live window. Treat those images as structural state evidence, then complete exact-candidate native-window visual acceptance on the target Mac. The Tonight popover renders faithfully and at intrinsic height.

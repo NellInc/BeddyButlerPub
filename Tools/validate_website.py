@@ -24,6 +24,8 @@ class PageParser(HTMLParser):
         self.ids: list[str] = []
         self.title_depth = 0
         self.title = ""
+        self.h1_count = 0
+        self.canonical: str | None = None
         self.has_description = False
         self.has_viewport = False
         self.has_language = False
@@ -36,6 +38,8 @@ class PageParser(HTMLParser):
             self.links.append(values["href"] or "")
         if tag == "link" and values.get("href"):
             self.resources.append(values["href"] or "")
+            if values.get("rel") == "canonical":
+                self.canonical = values["href"]
         if tag in {"script", "source"} and values.get("src"):
             self.resources.append(values["src"] or "")
         if tag == "source" and values.get("srcset"):
@@ -60,6 +64,8 @@ class PageParser(HTMLParser):
             self.has_viewport = True
         if tag == "title":
             self.title_depth += 1
+        if tag == "h1":
+            self.h1_count += 1
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "title":
@@ -70,14 +76,20 @@ class PageParser(HTMLParser):
             self.title += data
 
 
-def local_target(url: str, containing_page: Path = SITE / "index.html") -> tuple[Path | None, str]:
+def local_target(
+    url: str, containing_page: Path = SITE / "index.html"
+) -> tuple[Path | None, str]:
     if url.startswith(("https://", "http://", "mailto:", "tel:")):
         return None, ""
     parsed = urlparse(url)
     path = parsed.path
     if not path:
         return containing_page, parsed.fragment
-    target = SITE / path.lstrip("/") if path.startswith("/") else containing_page.parent / path
+    target = (
+        SITE / path.lstrip("/")
+        if path.startswith("/")
+        else containing_page.parent / path
+    )
     if path.endswith("/"):
         target /= "index.html"
     return target.resolve(), parsed.fragment
@@ -96,7 +108,8 @@ def main() -> int:
     actual_hidden_files = {
         path.relative_to(SITE)
         for path in SITE.rglob("*")
-        if path.is_file() and any(part.startswith(".") for part in path.relative_to(SITE).parts)
+        if path.is_file()
+        and any(part.startswith(".") for part in path.relative_to(SITE).parts)
     }
     if actual_hidden_files != expected_hidden_files:
         errors.append(
@@ -149,7 +162,25 @@ def main() -> int:
             errors.append(f"{rel}: missing meta description")
         if not parser.title.strip():
             errors.append(f"{rel}: missing title")
-        duplicates = sorted({value for value in parser.ids if parser.ids.count(value) > 1})
+        if parser.h1_count != 1:
+            errors.append(f"{rel}: expected exactly one h1, found {parser.h1_count}")
+        if page.name != "404.html":
+            site_relative = page.relative_to(SITE)
+            if site_relative == Path("index.html"):
+                expected_canonical = "https://www.beddybutler.com/"
+            else:
+                expected_canonical = (
+                    "https://www.beddybutler.com/"
+                    + site_relative.parent.as_posix()
+                    + "/"
+                )
+            if parser.canonical != expected_canonical:
+                errors.append(
+                    f"{rel}: expected canonical {expected_canonical}, found {parser.canonical!r}"
+                )
+        duplicates = sorted(
+            {value for value in parser.ids if parser.ids.count(value) > 1}
+        )
         if duplicates:
             errors.append(f"{rel}: duplicate IDs {duplicates}")
 
@@ -190,7 +221,47 @@ def main() -> int:
         if target is None or not is_inside_site(target) or not target.exists():
             errors.append(f"site.webmanifest: missing icon {icon['src']}")
 
-    ET.parse(SITE / "sitemap.xml")
+    sitemap = ET.parse(SITE / "sitemap.xml")
+    namespace = {"sitemap": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    sitemap_locations = {
+        element.text.strip()
+        for element in sitemap.findall("sitemap:url/sitemap:loc", namespace)
+        if element.text
+    }
+    canonical_pages = {
+        parser.canonical
+        for path, parser in parsed_pages.items()
+        if path.name != "404.html" and parser.canonical
+    }
+    if sitemap_locations != canonical_pages:
+        errors.append(
+            "sitemap.xml URLs differ from canonical HTML pages. "
+            f"Missing {sorted(canonical_pages - sitemap_locations)}; "
+            f"extra {sorted(sitemap_locations - canonical_pages)}"
+        )
+
+    required_primary_links = {
+        "/accessibility/",
+        "/privacy/",
+        "/support/",
+    }
+    for path, parser in parsed_pages.items():
+        if path.name == "404.html":
+            continue
+        site_relative = path.relative_to(SITE)
+        current_route = (
+            "/"
+            if site_relative == Path("index.html")
+            else f"/{site_relative.parent.as_posix()}/"
+        )
+        missing_primary_links = sorted(
+            required_primary_links - {current_route} - set(parser.links)
+        )
+        if missing_primary_links:
+            errors.append(
+                f"{path.relative_to(ROOT)}: missing primary links {missing_primary_links}"
+            )
+
     cname = (SITE / "CNAME").read_text(encoding="utf-8").strip()
     if cname != "www.beddybutler.com":
         errors.append(f"CNAME: expected www.beddybutler.com, found {cname!r}")
@@ -199,7 +270,9 @@ def main() -> int:
         print("\n".join(f"ERROR: {error}" for error in errors), file=sys.stderr)
         return 1
 
-    print(f"Website validation passed: {len(pages)} pages, all local links and assets resolved")
+    print(
+        f"Website validation passed: {len(pages)} pages, all local links and assets resolved"
+    )
     return 0
 
 

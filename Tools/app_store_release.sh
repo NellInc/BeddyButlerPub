@@ -52,6 +52,13 @@ if [[ ! "$build" =~ '^[1-9][0-9]*$' ]]; then
   exit 64
 fi
 
+if [[ "$mode" == "--upload" ]]; then
+  python3 Tools/require_publication_approval.py \
+    --action app-store-upload \
+    --version "$version" \
+    --build "$build"
+fi
+
 zsh Tools/validate_release_source.sh
 
 required=(
@@ -105,6 +112,13 @@ trap 'rm -rf -- "$temporary_root"' EXIT
 export_options="$temporary_root/ExportOptions.plist"
 
 xcodebuild archive   -project "Beddy Butler.xcodeproj"   -scheme "Beddy Butler"   -configuration Release   -destination "generic/platform=macOS"   -archivePath "$archive"   -allowProvisioningUpdates   DEVELOPMENT_TEAM="$team_id"   CODE_SIGN_STYLE=Automatic   MARKETING_VERSION="$version"   CURRENT_PROJECT_VERSION="$build"
+
+python3 Tools/validate_app_bundle.py \
+  "$archive/Products/Applications/Beddy Butler.app" \
+  --version "$version" \
+  --build "$build" \
+  --require-universal \
+  --require-signed-security
 
 destination="export"
 [[ "$mode" == "--upload" ]] && destination="upload"

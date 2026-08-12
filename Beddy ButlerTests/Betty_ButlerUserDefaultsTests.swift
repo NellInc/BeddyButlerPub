@@ -274,4 +274,80 @@ final class BeddyButlerUserDefaultsTests: XCTestCase {
         settings.clearExpiredTonightOverride(at: afterBed, calendar: calendar)
         XCTAssertNil(settings.tonightOverrideDate)
     }
+
+    @MainActor
+    func testWelcomeGuideCanBeReplayedWithoutChangingProductSettings() {
+        let defaults = freshDefaults()
+        let settings = AppSettings(defaults: defaults)
+        settings.updatePersonality(.zombie)
+        settings.updateFrequencyMinutes(19)
+        settings.completeOnboarding()
+
+        settings.replayOnboarding()
+
+        XCTAssertFalse(settings.hasCompletedOnboarding)
+        XCTAssertEqual(settings.personality, .zombie)
+        XCTAssertEqual(settings.frequencyMinutes, 19)
+        XCTAssertFalse(AppSettings(defaults: defaults).hasCompletedOnboarding)
+    }
+
+    @MainActor
+    func testRestoreRecommendedDefaultsResetsProductStateAndKeepsOnboardingComplete() {
+        let defaults = freshDefaults()
+        let settings = AppSettings(defaults: defaults)
+        settings.updateStartSeconds(1)
+        settings.updateBedSeconds(2)
+        settings.updateFrequencyMinutes(23)
+        settings.updatePersonality(.zombie)
+        settings.updateProgressiveMode(true)
+        settings.updateVoiceVolume(0.2)
+        settings.updateNudgeDelivery(.both)
+        settings.updateActiveWeekday(2, isActive: false)
+        settings.updateAlternateScheduleEnabled(true)
+        settings.updateAlternateScheduleWeekday(1, isSelected: true)
+        settings.updateAlternateStartSeconds(20 * 3_600)
+        settings.updateAlternateBedSeconds(3 * 3_600)
+        settings.updatePrimaryScheduleName("Changed")
+        settings.updateAlternateScheduleName("Changed too")
+        settings.updateAlternateSchedulePattern(.rotatingCycle)
+        settings.updateRotationPrimaryDays(8)
+        settings.updateRotationAlternateDays(9)
+        settings.enableTonightOverride()
+        settings.updateNotificationAlertsEnabled(true)
+        settings.recordVisualNudge()
+        settings.mute(until: Date().addingTimeInterval(3_600))
+        settings.completeOnboarding()
+
+        settings.restoreRecommendedDefaults()
+
+        XCTAssertEqual(settings.startSeconds, AppSettings.defaultStartSeconds)
+        XCTAssertEqual(settings.bedSeconds, AppSettings.defaultBedSeconds)
+        XCTAssertEqual(settings.frequencyMinutes, AppSettings.defaultFrequencyMinutes)
+        XCTAssertEqual(settings.personality, .shy)
+        XCTAssertFalse(settings.progressiveMode)
+        XCTAssertEqual(settings.voiceVolume, AppSettings.defaultVoiceVolume)
+        XCTAssertEqual(settings.nudgeDelivery, .sound)
+        XCTAssertEqual(settings.activeWeekdays, Set(1...7))
+        XCTAssertFalse(settings.alternateScheduleEnabled)
+        XCTAssertEqual(settings.alternateScheduleWeekdays, [6, 7])
+        XCTAssertEqual(settings.alternateStartSeconds, AppSettings.defaultStartSeconds)
+        XCTAssertEqual(settings.alternateBedSeconds, AppSettings.defaultBedSeconds)
+        XCTAssertEqual(settings.primaryScheduleName, "Regular")
+        XCTAssertEqual(settings.alternateScheduleName, "Alternate")
+        XCTAssertEqual(settings.alternateSchedulePattern, .selectedWeekdays)
+        XCTAssertEqual(settings.rotationPrimaryDays, 4)
+        XCTAssertEqual(settings.rotationAlternateDays, 4)
+        XCTAssertNil(settings.tonightOverrideDate)
+        XCTAssertFalse(settings.notificationAlertsEnabled)
+        XCTAssertEqual(settings.pendingVisualNudgeCount, 0)
+        XCTAssertNil(settings.lastVisualNudgeAt)
+        XCTAssertNil(settings.mutedUntil)
+        XCTAssertTrue(settings.hasCompletedOnboarding)
+
+        let restored = AppSettings(defaults: defaults)
+        XCTAssertEqual(restored.personality, .shy)
+        XCTAssertEqual(restored.activeWeekdays, Set(1...7))
+        XCTAssertNil(restored.mutedUntil)
+        XCTAssertTrue(restored.hasCompletedOnboarding)
+    }
 }

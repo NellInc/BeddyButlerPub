@@ -27,13 +27,63 @@ let log = Pipe()
 process.standardOutput = log
 process.standardError = log
 
+let defaultsSuitePrefix = "BeddyButler.RuntimeSmoke."
+
+func isOwnedDefaultsSuite(_ suiteName: String) -> Bool {
+    guard suiteName.hasPrefix(defaultsSuitePrefix) else { return false }
+    return UUID(uuidString: String(suiteName.dropFirst(defaultsSuitePrefix.count))) != nil
+}
+
+@discardableResult
+func clearDefaultsSuite(named suiteName: String) -> Bool {
+    guard isOwnedDefaultsSuite(suiteName) else {
+        fputs("Refusing to clear an unexpected runtime-smoke defaults domain.\n", stderr)
+        return false
+    }
+    let delete = Process()
+    delete.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+    delete.arguments = ["delete", suiteName]
+    delete.standardOutput = FileHandle.nullDevice
+    delete.standardError = FileHandle.nullDevice
+    do {
+        try delete.run()
+    } catch {
+        fputs("Runtime-smoke defaults cleanup failed: \(error.localizedDescription)\n", stderr)
+        return false
+    }
+    delete.waitUntilExit()
+    guard delete.terminationStatus == 0 else {
+        fputs("Runtime-smoke defaults cleanup command failed.\n", stderr)
+        return false
+    }
+
+    Thread.sleep(forTimeInterval: 0.2)
+    let preferenceFile = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Preferences", isDirectory: true)
+        .appendingPathComponent("\(suiteName).plist")
+    guard FileManager.default.fileExists(atPath: preferenceFile.path) else { return true }
+    do {
+        // The child is terminated before cleanup, and the UUID-qualified suite
+        // belongs solely to this probe. Remove any cfprefsd file left behind by
+        // the domain deletion, including the expected defaults the app seeded.
+        try FileManager.default.removeItem(at: preferenceFile)
+        return !FileManager.default.fileExists(atPath: preferenceFile.path)
+    } catch {
+        fputs("Runtime-smoke defaults cleanup failed: \(error.localizedDescription)\n", stderr)
+        return false
+    }
+}
+
 try process.run()
+var cleanupCompleted = false
 defer {
-    if process.isRunning {
+    if !cleanupCompleted, process.isRunning {
         process.terminate()
         process.waitUntilExit()
     }
-    UserDefaults(suiteName: defaultsSuite)?.removePersistentDomain(forName: defaultsSuite)
+    if !cleanupCompleted {
+        _ = clearDefaultsSuite(named: defaultsSuite)
+    }
 }
 
 let deadline = Date().addingTimeInterval(10)
@@ -70,6 +120,15 @@ else {
     fputs("The resizable preferences window did not appear within 10 seconds.\n", stderr)
     exit(1)
 }
+
+if process.isRunning {
+    process.terminate()
+    process.waitUntilExit()
+}
+guard clearDefaultsSuite(named: defaultsSuite) else {
+    exit(1)
+}
+cleanupCompleted = true
 
 print(
     "Runtime smoke passed: PID \(process.processIdentifier), "

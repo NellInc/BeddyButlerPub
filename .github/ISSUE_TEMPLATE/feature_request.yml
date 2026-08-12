@@ -1,0 +1,42 @@
+name: Feature request
+description: Suggest a focused improvement to Beddy Butler.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping Beddy Butler stay useful and small. Describe the evening problem first, and omit private schedule details you do not want to share publicly.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Explain the moment or difficulty without prescribing a technical implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What outcome would help?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Tonight panel
+        - Scheduling
+        - Sound or visual nudges
+        - Accessibility
+        - Shortcuts or automation
+        - Website or support
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy or accessibility considerations
+      description: Include any reason this should remain local, reversible, perceivable without sound, or operable without a pointer.
+    validations:
+      required: false

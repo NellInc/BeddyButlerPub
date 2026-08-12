@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accessibility, Beddy Butler</title>
+  <meta name="description" content="Accessibility features, verification boundaries, and support routes for Beddy Butler on macOS.">
+  <meta name="theme-color" content="#071328"><link rel="canonical" href="https://www.beddybutler.com/accessibility/">
+  <link rel="icon" href="/assets/favicon.png"><link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body class="subpage-body">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Beddy Butler home"><img src="/assets/favicon.png" width="42" height="42" alt=""><span>Beddy Butler</span></a>
+    <nav aria-label="Main navigation"><a href="/#features">Features</a><a href="/support/">Support</a><a href="/privacy/">Privacy</a></nav>
+    <a class="nav-cta" href="/">Return home</a>
+  </header>
+  <main class="legal-main" id="main">
+    <p class="eyebrow">Accessibility</p>
+    <h1>A bedtime reminder should meet you where you are.</h1>
+    <p class="legal-lede">Beddy Butler combines native macOS controls with sound, persistent visual state, and silent notification choices.</p>
+
+    <h2>Ways to receive a nudge</h2>
+    <ul>
+      <li><strong>Sound:</strong> hear an original voiced reminder with independent volume control.</li>
+      <li><strong>Visual:</strong> keep a persistent menu bar badge until it is acknowledged.</li>
+      <li><strong>Both:</strong> combine the voice and badge without duplicating the scheduled nudge.</li>
+      <li><strong>Notification Centre:</strong> optionally add a silent local alert with Acknowledge, Snooze, and Pause actions.</li>
+    </ul>
+
+    <h2>macOS accessibility support</h2>
+    <ul>
+      <li>Native control names, values, hints, and keyboard shortcuts support VoiceOver and Full Keyboard Access.</li>
+      <li>Important state uses text and symbols as well as colour.</li>
+      <li>Reduced Motion keeps a stable character pose.</li>
+      <li>Reduced Transparency keeps content readable with an opaque material fallback.</li>
+      <li>Resizable and scrollable preferences preserve access to controls at the supported minimum window size.</li>
+    </ul>
+
+    <h2>What the voices are like</h2>
+    <p>The visible description beside each preview communicates the character of the sound without requiring it to be heard.</p>
+    <ul>
+      <li><strong>Shy:</strong> a quiet, discreet, and polite reminder.</li>
+      <li><strong>Insistent:</strong> a firmer, more direct prompt.</li>
+      <li><strong>Zombie:</strong> a theatrical, exaggerated, intentionally startling last resort.</li>
+    </ul>
+    <p>A reviewed, line-by-line transcript catalogue is planned. The app's visual badge and Tonight state already provide the full scheduling action without depending on spoken content.</p>
+
+    <h2>How accessibility is verified</h2>
+    <p>Automated tests cover accessible control identifiers, scheduling behaviour, persistent visual state, motion fallback, and the critical macOS accessibility hierarchy. Every release candidate also retains person led VoiceOver, keyboard, contrast, transparency, display, sleep, wake, and audio route checks. Automated evidence never replaces those checks.</p>
+
+    <h2>Report an accessibility problem</h2>
+    <p>Use the dedicated <a href="https://github.com/NellInc/beddybutlerpub/issues/new?template=accessibility.yml">accessibility report form</a>. Include the Beddy Butler version, macOS version, the assistive technology or display setting in use, and the smallest safe description of what happened. Omit private bedtime details.</p>
+
+    <div class="legal-note"><strong>Current boundary:</strong> support is described for the current release candidate. Person led acceptance is recorded again for every exact version, build, and source candidate before public distribution.</div>
+  </main>
+  <footer>
+    <div class="footer-brand"><img src="/assets/favicon.png" width="38" height="38" alt=""><span><strong>Beddy Butler</strong><small>A gentler way to go to bed.</small></span></div>
+    <nav aria-label="Footer navigation"><a href="/">Home</a><a href="/privacy/">Privacy</a><a href="/support/">Support</a></nav>
+    <p>© 2015–2026 Nell Watson. Made for night owls with mornings ahead.</p>
+  </footer>
+</body>
+</html>
