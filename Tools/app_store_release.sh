@@ -5,7 +5,7 @@ root="${0:A:h:h}"
 cd "$root"
 
 mode="${1:---preflight}"
-version="${2:-2.0.1}"
+version="${2:-2.0.2}"
 build="${3:-612}"
 team_id="${BEDDY_APPLE_TEAM_ID:-BBYYCBH7EW}"
 temporary_base="${TMPDIR:-/tmp}"

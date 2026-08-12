@@ -11,7 +11,7 @@ Status meanings:
 * **Distribution gate**: signing, notarization, upload, TestFlight, or store processing requires external account state and explicit approval.
 * **Publication gate**: a live mutation is deliberately withheld until Nell approves it.
 * **Environment gate**: the required verifier cannot run under this host profile.
-* **Roadmap**: deliberately sequenced after the verified 2.0.1 release rather than implied as release scope.
+* **Roadmap**: deliberately sequenced after the verified 2.0.2 release rather than implied as release scope.
 
 ## Local completion matrix
 

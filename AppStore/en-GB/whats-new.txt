@@ -1,1 +1,1 @@
-Version 2.0.1 gives Beddy Butler a full-bleed, frameless app icon and a polished About window with complete design, engineering, and QA credits.
+Version 2.0.2 gives Beddy Butler a full-bleed, frameless app icon and a polished About window with complete design, engineering, and QA credits.

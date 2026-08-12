@@ -1,6 +1,6 @@
 # Mac App Store submission package
 
-This folder contains the product copy, release notes, and six polished 2880 by 1800 screenshots for the Beddy Butler 2.0.1 update. The live product page should use:
+This folder contains the product copy, release notes, and six polished 2880 by 1800 screenshots for the Beddy Butler 2.0.2 update. The live product page should use:
 
 * Marketing URL: https://www.beddybutler.com/
 * Support URL: https://www.beddybutler.com/support/
@@ -15,7 +15,7 @@ Validate the local package first:
 
 ```sh
 python3 Tools/validate_app_store_metadata.py
-Tools/app_store_release.sh --preflight 2.0.1 612
+Tools/app_store_release.sh --preflight 2.0.2 612
 ```
 
 The metadata validator checks field limits, canonical URLs, privacy wording, screenshot order, image format, image count, and 2880 by 1800 dimensions without third party Python packages. The archive path also runs `Tools/validate_app_bundle.py` before export or upload. Once the version record, signing access, exact candidate approval, and publication authority exist, set `BEDDY_APP_STORE_UPLOAD_APPROVAL` to `APP_STORE_UPLOAD:<40-character-commit>:<version>:<build>`, then use `--upload` to archive, export, and upload through Xcode. Do not upload merely because preflight passes.

@@ -20,15 +20,18 @@ jobs:
         run: brew install ffmpeg
       - name: Validate project and plists
         run: |
+          set -euo pipefail
           plutil -lint "Beddy Butler.xcodeproj/project.pbxproj"
           plutil -lint "Beddy Butler/Info.plist"
           plutil -lint "Beddy Butler/Beddy Butler.entitlements"
           plutil -lint "Beddy Butler/PrivacyInfo.xcprivacy"
       - name: Validate formatting and static assets
         run: |
+          set -euo pipefail
           mkdir -p "$RUNNER_TEMP/BeddyButlerEvidence"
           {
             xcrun swift-format lint --recursive "Beddy Butler" "Beddy ButlerTests" Tools
+            python3 Tools/validate_ci_workflow.py
             python3 Tools/validate_website.py
             python3 Tools/validate_app_store_metadata.py
             python3 Tools/check_large_files.py
@@ -42,6 +45,7 @@ jobs:
           } 2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/static-validation.txt"
       - name: Test
         run: |
+          set -euo pipefail
           xcodebuild test \
             -project "Beddy Butler.xcodeproj" \
             -scheme "Beddy Butler" \
@@ -56,6 +60,7 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/xctest.txt"
       - name: Analyze
         run: |
+          set -euo pipefail
           xcodebuild analyze \
             -project "Beddy Butler.xcodeproj" \
             -scheme "Beddy Butler" \
@@ -68,6 +73,7 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/analyze.txt"
       - name: Release build
         run: |
+          set -euo pipefail
           xcodebuild build \
             -project "Beddy Butler.xcodeproj" \
             -scheme "Beddy Butler" \
@@ -83,8 +89,8 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/release-build.txt"
           python3 Tools/validate_app_bundle.py \
             "$RUNNER_TEMP/BeddyButlerRelease/Build/Products/Release/Beddy Butler.app" \
-            --version 2.0.1 \
-            --build 611 \
+            --version 2.0.2 \
+            --build 612 \
             --require-universal \
             2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/bundle-validation.txt"
       - name: Upload validation evidence

@@ -1,6 +1,6 @@
 # Beddy Butler improvement programme
 
-This is the local working goal for the full post 2.0.1 improvement sweep. It turns the broad backlog into executable phases while preserving the rule that nothing is pushed, deployed, uploaded, or submitted until Nell verifies the candidate.
+This is the local working goal for the full 2.0.2 improvement sweep. It turns the broad backlog into executable phases while preserving the rule that nothing is pushed, deployed, uploaded, or submitted until Nell verifies the candidate.
 
 ## Operating contract
 
@@ -113,7 +113,7 @@ This is the local working goal for the full post 2.0.1 improvement sweep. It tur
 
 ## Phase 10, future product expansion
 
-`FUTURE_ROADMAP.md` defines evidence-gated stages for 2.0.1 acceptance, accessibility and localization, everyday control, schedule convenience, Shortcuts, and carefully gated experiments. Health, Focus, widgets, or cross-platform work waits for concrete demand plus a new privacy, accessibility, support, and threat review.
+`FUTURE_ROADMAP.md` defines evidence-gated stages for 2.0.2 acceptance, accessibility and localization, everyday control, schedule convenience, Shortcuts, and carefully gated experiments. Health, Focus, widgets, or cross-platform work waits for concrete demand plus a new privacy, accessibility, support, and threat review.
 
 ## Recommended execution order
 

@@ -56,7 +56,7 @@ def main() -> int:
             project = repository / "Beddy Butler.xcodeproj" / "project.pbxproj"
             project.parent.mkdir()
             project.write_text(
-                "MARKETING_VERSION = 2.0.1;\nCURRENT_PROJECT_VERSION = 612;\n",
+                "MARKETING_VERSION = 2.0.2;\nCURRENT_PROJECT_VERSION = 612;\n",
                 encoding="utf-8",
             )
             template = repository / "RELEASE_EVIDENCE_TEMPLATE.md"
@@ -79,7 +79,7 @@ def main() -> int:
                     f"clean record failed: {clean_stdout}{clean_stderr}"
                 )
             clean_destination = Path(clean_stdout.splitlines()[0])
-            if clean_destination.name != f"BeddyButler-2.0.1-612-{commit[:12]}.md":
+            if clean_destination.name != f"BeddyButler-2.0.2-612-{commit[:12]}.md":
                 raise AssertionError(
                     f"unexpected clean evidence filename: {clean_destination.name}"
                 )
@@ -106,7 +106,7 @@ def main() -> int:
                 raise AssertionError(f"dirty record failed: {stdout}{stderr}")
             destination = Path(stdout.splitlines()[0])
             if destination.name != (
-                f"BeddyButler-2.0.1-612-{commit[:12]}-dirty-{digest[:12]}.md"
+                f"BeddyButler-2.0.2-612-{commit[:12]}-dirty-{digest[:12]}.md"
             ):
                 raise AssertionError(
                     f"unexpected evidence filename: {destination.name}"

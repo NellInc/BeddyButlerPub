@@ -10,7 +10,7 @@ body:
     id: version
     attributes:
       label: Beddy Butler version
-      placeholder: For example, 2.0.1 (611), as shown in About
+      placeholder: For example, 2.0.2 (612), as shown in About
     validations:
       required: true
   - type: input

@@ -4,9 +4,9 @@ The recommended path protects Beddy Butler's small, calm utility character. Each
 
 ## Recommendation
 
-Ship the verified 2.0.1 candidate first. Then prioritize localization readiness, authoritative audio transcripts, person-led notification permission transition checks, and one configurable snooze duration. These changes improve inclusion and daily usefulness while preserving the product's privacy and simplicity.
+Ship the verified 2.0.2 candidate first. Then prioritize localization readiness, authoritative audio transcripts, person-led notification permission transition checks, and one configurable snooze duration. These changes improve inclusion and daily usefulness while preserving the product's privacy and simplicity.
 
-## Stage 0, finish and learn from 2.0.1
+## Stage 0, finish and learn from 2.0.2
 
 ### Entry
 
