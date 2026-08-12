@@ -39,7 +39,7 @@ After producing a Release application bundle, validate its identity, resources, 
 python3 Tools/validate_app_bundle.py \
   "/path/to/Beddy Butler.app" \
   --version 2.0.1 \
-  --build 611 \
+  --build 612 \
   --require-universal
 ```
 

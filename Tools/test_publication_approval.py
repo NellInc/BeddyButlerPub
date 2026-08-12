@@ -70,7 +70,7 @@ class PublicationApprovalTests(unittest.TestCase):
         )
 
     def test_notarization_requires_exact_version_build_and_commit(self) -> None:
-        arguments = ("--version", "2.0.1", "--build", "611")
+        arguments = ("--version", "2.0.1", "--build", "612")
         missing = self.run_interlock(
             "notarize", "BEDDY_NOTARIZATION_APPROVAL", None, *arguments
         )
@@ -79,7 +79,7 @@ class PublicationApprovalTests(unittest.TestCase):
         wrong = self.run_interlock(
             "notarize",
             "BEDDY_NOTARIZATION_APPROVAL",
-            f"NOTARIZE:{'0' * 40}:2.0.1:611",
+            f"NOTARIZE:{'0' * 40}:2.0.1:612",
             *arguments,
         )
         self.assertNotEqual(wrong.returncode, 0)
@@ -87,13 +87,13 @@ class PublicationApprovalTests(unittest.TestCase):
         exact = self.run_interlock(
             "notarize",
             "BEDDY_NOTARIZATION_APPROVAL",
-            f"NOTARIZE:{self.commit}:2.0.1:611",
+            f"NOTARIZE:{self.commit}:2.0.1:612",
             *arguments,
         )
         self.assertEqual(exact.returncode, 0, exact.stderr)
 
     def test_app_store_upload_rejects_dirty_exact_candidate(self) -> None:
-        approval = f"APP_STORE_UPLOAD:{self.commit}:2.0.1:611"
+        approval = f"APP_STORE_UPLOAD:{self.commit}:2.0.1:612"
         (self.repository / "candidate.txt").write_text("changed\n", encoding="utf-8")
         result = self.run_interlock(
             "app-store-upload",
@@ -102,7 +102,7 @@ class PublicationApprovalTests(unittest.TestCase):
             "--version",
             "2.0.1",
             "--build",
-            "611",
+            "612",
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("clean working tree", result.stderr)
@@ -111,11 +111,11 @@ class PublicationApprovalTests(unittest.TestCase):
         result = self.run_interlock(
             "app-store-upload",
             "BEDDY_APP_STORE_UPLOAD_APPROVAL",
-            f"APP_STORE_UPLOAD:{self.commit}:2.0.1:611",
+            f"APP_STORE_UPLOAD:{self.commit}:2.0.1:612",
             "--version",
             "2.0.1",
             "--build",
-            "611",
+            "612",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 

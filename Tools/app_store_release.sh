@@ -6,7 +6,7 @@ cd "$root"
 
 mode="${1:---preflight}"
 version="${2:-2.0.1}"
-build="${3:-611}"
+build="${3:-612}"
 team_id="${BEDDY_APPLE_TEAM_ID:-BBYYCBH7EW}"
 temporary_base="${TMPDIR:-/tmp}"
 archive="${BEDDY_ARCHIVE_PATH:-${temporary_base}/BeddyButler-${version}-${build}.xcarchive}"
