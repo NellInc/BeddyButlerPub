@@ -5,12 +5,7 @@ import XCTest
 
 final class BeddyButlerUserDefaultsTests: XCTestCase {
     private func freshDefaults() -> UserDefaults {
-        let suiteName = "BeddyButlerTests.\(UUID().uuidString)"
-        guard let defaults = UserDefaults(suiteName: suiteName) else {
-            fatalError("Could not create isolated user defaults")
-        }
-        defaults.removePersistentDomain(forName: suiteName)
-        return defaults
+        makeIsolatedDefaults(prefix: "BeddyButlerTests")
     }
 
     @MainActor
@@ -363,7 +358,11 @@ final class BeddyButlerUserDefaultsTests: XCTestCase {
         XCTAssertTrue(AppSettings(defaults: defaults).hasActivatedSchedule)
         XCTAssertEqual(settings.personality, .zombie)
         XCTAssertEqual(settings.frequencyMinutes, 19)
-        XCTAssertFalse(AppSettings(defaults: defaults).hasCompletedOnboarding)
+        XCTAssertTrue(AppSettings(defaults: defaults).hasCompletedOnboarding)
+        XCTAssertEqual(
+            defaults.integer(forKey: UserDefaultKeys.onboardingVersion.rawValue),
+            AppSettings.currentOnboardingVersion
+        )
     }
 
     @MainActor
@@ -424,5 +423,193 @@ final class BeddyButlerUserDefaultsTests: XCTestCase {
         XCTAssertEqual(restored.activeWeekdays, Set(1...7))
         XCTAssertNil(restored.mutedUntil)
         XCTAssertTrue(restored.hasCompletedOnboarding)
+    }
+
+    @MainActor
+    func testUpdatingFromARelease202InstallKeepsRemindersOn() {
+        let defaults = freshDefaults()
+        // 2.0.2 wrote onboardingVersion 0 on fresh installs and on replay, and had no Start step.
+        defaults.set(0, forKey: UserDefaultKeys.onboardingVersion.rawValue)
+        defaults.set(Double(22 * 3_600), forKey: UserDefaultKeys.startTimeValue.rawValue)
+        defaults.set(Double(23 * 3_600), forKey: UserDefaultKeys.bedTimeValue.rawValue)
+
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertTrue(settings.hasActivatedSchedule)
+        XCTAssertFalse(settings.hasCompletedOnboarding)
+        XCTAssertTrue(AppSettings(defaults: defaults).hasActivatedSchedule)
+        XCTAssertFalse(AppSettings(defaults: defaults).hasCompletedOnboarding)
+    }
+
+    private func localCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .autoupdatingCurrent
+        return calendar
+    }
+
+    private func localDate(_ day: Int, _ hour: Int, _ minute: Int = 0, calendar: Calendar) throws -> Date {
+        try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: day, hour: hour, minute: minute))
+        )
+    }
+
+    @MainActor
+    func testTonightAdjustmentStartsFromAnAlternateWeekdayNight() throws {
+        let calendar = localCalendar()
+        let settings = AppSettings(defaults: freshDefaults())
+        settings.updateAlternateScheduleEnabled(true)
+        settings.updateAlternateScheduleWeekday(1, isSelected: true)
+        settings.updateAlternateStartSeconds(23 * 3_600)
+        settings.updateAlternateBedSeconds(1 * 3_600)
+        let sundayEvening = try localDate(26, 20, calendar: calendar)
+
+        settings.enableTonightOverride(on: sundayEvening, calendar: calendar)
+
+        XCTAssertEqual(settings.tonightOverrideStartSeconds, 23 * 3_600)
+        XCTAssertEqual(settings.tonightOverrideBedSeconds, 1 * 3_600)
+        let window = try XCTUnwrap(
+            ScheduleCalculator(calendar: calendar).window(
+                containingOrAfter: sundayEvening,
+                schedule: settings.weeklySchedule
+            )
+        )
+        XCTAssertEqual(window.start, try localDate(26, 23, calendar: calendar))
+    }
+
+    @MainActor
+    func testTonightAdjustmentStartsFromARotatingAlternateNight() throws {
+        let calendar = localCalendar()
+        let settings = AppSettings(defaults: freshDefaults())
+        settings.updateAlternateScheduleEnabled(true)
+        settings.updateAlternateSchedulePattern(.rotatingCycle)
+        settings.updateRotationAnchorDate(try localDate(20, 12, calendar: calendar), calendar: calendar)
+        settings.updateRotationPrimaryDays(1)
+        settings.updateRotationAlternateDays(1)
+        settings.updateAlternateStartSeconds(22 * 3_600)
+        settings.updateAlternateBedSeconds(2 * 3_600)
+
+        settings.enableTonightOverride(on: try localDate(21, 20, calendar: calendar), calendar: calendar)
+
+        XCTAssertEqual(settings.tonightOverrideStartSeconds, 22 * 3_600)
+        XCTAssertEqual(settings.tonightOverrideBedSeconds, 2 * 3_600)
+    }
+
+    @MainActor
+    func testReenablingTonightAdjustmentStartsFromTheScheduleNotTheOldAdjustment() throws {
+        let calendar = localCalendar()
+        let settings = AppSettings(defaults: freshDefaults())
+        let evening = try localDate(21, 20, calendar: calendar)
+        settings.enableTonightOverride(on: evening, calendar: calendar)
+        settings.updateTonightOverrideStartSeconds(19 * 3_600)
+        settings.updateTonightOverrideBedSeconds(19 * 3_600 + 30 * 60)
+
+        settings.enableTonightOverride(on: evening, calendar: calendar)
+
+        XCTAssertEqual(settings.tonightOverrideStartSeconds, AppSettings.defaultStartSeconds)
+        XCTAssertEqual(settings.tonightOverrideBedSeconds, AppSettings.defaultBedSeconds)
+    }
+
+    @MainActor
+    func testTonightAdjustmentAfterMidnightBelongsToTheNightInProgress() throws {
+        let calendar = localCalendar()
+        let settings = AppSettings(defaults: freshDefaults())
+        settings.updateStartSeconds(22 * 3_600)
+        settings.updateBedSeconds(1 * 3_600)
+        let afterMidnight = try localDate(22, 0, 30, calendar: calendar)
+
+        settings.enableTonightOverride(on: afterMidnight, calendar: calendar)
+        settings.updateTonightOverrideBedSeconds(2 * 3_600)
+
+        XCTAssertEqual(settings.tonightOverrideDate, try localDate(21, 0, calendar: calendar))
+        XCTAssertTrue(settings.tonightOverrideIsActive(at: afterMidnight, calendar: calendar))
+        XCTAssertTrue(settings.tonightOverridePending(at: afterMidnight, calendar: calendar))
+        let window = try XCTUnwrap(
+            ScheduleCalculator(calendar: calendar).window(
+                containingOrAfter: afterMidnight,
+                schedule: settings.weeklySchedule
+            )
+        )
+        XCTAssertEqual(window.end, try localDate(22, 2, calendar: calendar))
+    }
+
+    @MainActor
+    func testTonightAdjustmentEnabledAfterBedtimeStaysOn() throws {
+        let calendar = localCalendar()
+        let settings = AppSettings(defaults: freshDefaults())
+        let afterBedtime = try localDate(21, 23, 30, calendar: calendar)
+
+        settings.enableTonightOverride(on: afterBedtime, calendar: calendar)
+        settings.clearExpiredTonightOverride(at: afterBedtime, calendar: calendar)
+
+        XCTAssertNotNil(settings.tonightOverrideDate)
+        XCTAssertTrue(settings.tonightOverridePending(at: afterBedtime, calendar: calendar))
+    }
+
+    @MainActor
+    func testMovingTonightsBedtimeEarlierThanNowKeepsTheEdit() throws {
+        let calendar = localCalendar()
+        let settings = AppSettings(defaults: freshDefaults())
+        let now = try localDate(21, 22, 30, calendar: calendar)
+        settings.enableTonightOverride(on: now, calendar: calendar)
+
+        settings.updateTonightOverrideBedSeconds(22 * 3_600)
+        settings.clearExpiredTonightOverride(at: now, calendar: calendar)
+
+        XCTAssertNotNil(settings.tonightOverrideDate)
+        XCTAssertEqual(settings.tonightOverrideBedSeconds, 22 * 3_600)
+        XCTAssertTrue(settings.tonightOverridePending(at: now, calendar: calendar))
+    }
+
+    @MainActor
+    func testMovingAnAfterMidnightBedtimeBeforeNowDoesNotRestoreTheRegularWindow() throws {
+        let calendar = localCalendar()
+        let settings = AppSettings(defaults: freshDefaults())
+        settings.updateStartSeconds(22 * 3_600)
+        settings.updateBedSeconds(1 * 3_600)
+        let afterMidnight = try localDate(22, 0, 30, calendar: calendar)
+        settings.enableTonightOverride(on: afterMidnight, calendar: calendar)
+
+        settings.updateTonightOverrideBedSeconds(15 * 60)
+        settings.clearExpiredTonightOverride(at: afterMidnight, calendar: calendar)
+
+        XCTAssertNotNil(settings.tonightOverrideDate)
+        XCTAssertTrue(settings.tonightOverridePending(at: afterMidnight, calendar: calendar))
+        let nudge = ScheduleCalculator(calendar: calendar).nextNudge(
+            after: afterMidnight,
+            interval: 300,
+            schedule: settings.weeklySchedule
+        )
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(nudge).fireDate, try localDate(22, 22, calendar: calendar))
+
+        let afterRegularBedtime = try localDate(22, 1, 0, calendar: calendar)
+        settings.clearExpiredTonightOverride(at: afterRegularBedtime, calendar: calendar)
+        XCTAssertNil(settings.tonightOverrideDate)
+    }
+
+    @MainActor
+    func testTonightAdjustmentClearsOnTheFollowingDay() throws {
+        let calendar = localCalendar()
+        let settings = AppSettings(defaults: freshDefaults())
+        settings.enableTonightOverride(on: try localDate(21, 20, calendar: calendar), calendar: calendar)
+
+        settings.clearExpiredTonightOverride(at: try localDate(21, 23, 59, calendar: calendar), calendar: calendar)
+        XCTAssertNotNil(settings.tonightOverrideDate)
+
+        let nextMorning = try localDate(22, 0, 1, calendar: calendar)
+        XCTAssertFalse(settings.tonightOverridePending(at: nextMorning, calendar: calendar))
+        settings.clearExpiredTonightOverride(at: nextMorning, calendar: calendar)
+        XCTAssertNil(settings.tonightOverrideDate)
+    }
+
+    @MainActor
+    func testTonightAdjustmentWithEqualTimesIsNeverActive() throws {
+        let calendar = localCalendar()
+        let settings = AppSettings(defaults: freshDefaults())
+        let evening = try localDate(21, 20, calendar: calendar)
+        settings.enableTonightOverride(on: evening, calendar: calendar)
+        settings.updateTonightOverrideBedSeconds(settings.tonightOverrideStartSeconds)
+
+        XCTAssertFalse(settings.tonightOverrideIsActive(at: evening, calendar: calendar))
+        XCTAssertTrue(settings.tonightOverridePending(at: evening, calendar: calendar))
     }
 }

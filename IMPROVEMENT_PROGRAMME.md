@@ -84,7 +84,7 @@ This is the local working goal for the full 2.0.2 improvement sweep. It turns th
 | Item | Action | Status | Verification |
 | --- | --- | --- | --- |
 | Local website validation | Check local links, assets, metadata, sitemap, manifest, hidden files | Existing, extended candidate | `python3 Tools/validate_website.py` |
-| Public destination validation | Verify the current public baseline separately from the approved post-deployment state | Added locally; current mode passes, publication mode remains closed | `python3 Tools/test_live_destinations.py`; `python3 Tools/validate_live_destinations.py --mode current`; use `--mode publication` only as the post-deployment gate |
+| Public destination validation | Verify the current public baseline separately from the approved post-deployment state | Added locally; current and publication modes pass | `python3 Tools/test_live_destinations.py`; `python3 Tools/validate_live_destinations.py --mode current`; use `--mode publication` only as the post-deployment gate |
 | Live URL validation | Verify HTTPS 200 for home, support, privacy, sitemap, 404, App Store URL | Human or release gate | Network evidence captured before publish |
 | FAQ | Add no account, no tracking, no microphone, notifications, launch at login, quit | Added locally | `Website/support/index.html` |
 | Accessibility statement | Add a public accessibility support note with exact-candidate verification boundaries | Added locally | `Website/accessibility/index.html` |
@@ -113,7 +113,7 @@ This is the local working goal for the full 2.0.2 improvement sweep. It turns th
 
 ## Phase 10, future product expansion
 
-`FUTURE_ROADMAP.md` defines evidence-gated stages for 2.0.2 acceptance, accessibility and localization, everyday control, schedule convenience, Shortcuts, and carefully gated experiments. Health, Focus, widgets, or cross-platform work waits for concrete demand plus a new privacy, accessibility, support, and threat review.
+`FUTURE_ROADMAP.md` defines evidence-gated stages for 2.0.3 acceptance, accessibility and localization, everyday control, schedule convenience, Shortcuts, and carefully gated experiments. Health, Focus, widgets, or cross-platform work waits for concrete demand plus a new privacy, accessibility, support, and threat review.
 
 ## Recommended execution order
 

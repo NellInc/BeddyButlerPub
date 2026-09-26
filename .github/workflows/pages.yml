@@ -5,12 +5,18 @@ on:
     paths:
       - "Website/**"
       - "Tools/validate_website.py"
+      - "Tools/test_website_samples.py"
+      - "Tools/test_website_samples.js"
+      - "Tools/test_website_avatars.cjs"
       - ".github/workflows/pages.yml"
   push:
     branches: [master]
     paths:
       - "Website/**"
       - "Tools/validate_website.py"
+      - "Tools/test_website_samples.py"
+      - "Tools/test_website_samples.js"
+      - "Tools/test_website_avatars.cjs"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
     inputs:
@@ -35,8 +41,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Validate static website
-        run: python3 Tools/validate_website.py
+        run: |
+          set -euo pipefail
+          python3 Tools/validate_website.py
+          python3 Tools/test_website_samples.py
+          node Tools/test_website_samples.js
+          node Tools/test_website_avatars.cjs
 
   deploy:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
@@ -72,7 +85,9 @@ jobs:
           ref: ${{ inputs.candidate_sha }}
           persist-credentials: false
       - name: Confirm checked-out candidate
-        run: test "$(git rev-parse HEAD)" = "${{ inputs.candidate_sha }}"
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
@@ -80,4 +95,4 @@ jobs:
           include-hidden-files: true
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

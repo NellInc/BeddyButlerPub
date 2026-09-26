@@ -102,7 +102,7 @@ def main() -> int:
             {
                 "trackName": "Beddy Butler",
                 "bundleId": VALIDATOR.EXPECTED_BUNDLE_ID,
-                "version": VALIDATOR.EXPECTED_APP_VERSION,
+                "version": VALIDATOR.LIVE_APP_VERSION,
                 "minimumOsVersion": VALIDATOR.EXPECTED_MINIMUM_OS,
                 "formattedPrice": "Free",
             }
@@ -112,6 +112,30 @@ def main() -> int:
         result(json.dumps(app), content_type="application/json")
     )
     checks += 1
+    app["results"][0]["version"] = VALIDATOR.project_marketing_version()
+    VALIDATOR.validate_app_store(
+        result(json.dumps(app), content_type="application/json")
+    )
+    checks += 1
+    expect_failure(
+        "explicit App Store version",
+        "version differs",
+        lambda: VALIDATOR.validate_app_store(
+            result(json.dumps(app), content_type="application/json"),
+            {"0.0.1"},
+        ),
+    )
+    checks += 1
+    app["results"][0]["version"] = "0.0.1"
+    expect_failure(
+        "unexpected App Store version",
+        "version differs",
+        lambda: VALIDATOR.validate_app_store(
+            result(json.dumps(app), content_type="application/json")
+        ),
+    )
+    checks += 1
+    app["results"][0]["version"] = VALIDATOR.LIVE_APP_VERSION
     app["results"][0]["bundleId"] = "com.example.substituted"
     expect_failure(
         "App Store bundle substitution",
@@ -165,6 +189,38 @@ def main() -> int:
         "substituted candidate asset",
         "assets/styles.css differs",
         lambda: VALIDATOR.validate_candidate_files(substituted_fetcher),
+    )
+    checks += 1
+
+    app["results"][0]["bundleId"] = VALIDATOR.EXPECTED_BUNDLE_ID
+    repository["archived"] = False
+
+    def site_fetcher(url: str) -> VALIDATOR.HTTPResult:
+        if url == VALIDATOR.APEX_URL:
+            return result(page("/"), url=f"{VALIDATOR.SITE_ORIGIN}/")
+        if url == VALIDATOR.APP_STORE_LOOKUP:
+            return result(json.dumps(app), url=url, content_type="application/json")
+        if url == VALIDATOR.GITHUB_REPOSITORY_API:
+            return result(
+                json.dumps(repository), url=url, content_type="application/json"
+            )
+        if url.endswith("/release-validation-missing-page"):
+            return result("missing", url=url, status=404)
+        return candidate_fetcher(url)
+
+    for mode in ("current", "publication"):
+        VALIDATOR.validate(mode, site_fetcher)
+        checks += 1
+
+    def unpublished_fetcher(url: str) -> VALIDATOR.HTTPResult:
+        if url == f"{VALIDATOR.SITE_ORIGIN}/press/":
+            return result("missing", url=url, status=404)
+        return site_fetcher(url)
+
+    expect_failure(
+        "unpublished press route",
+        "/press/ returned HTTP 404",
+        lambda: VALIDATOR.validate("current", unpublished_fetcher),
     )
     checks += 1
 

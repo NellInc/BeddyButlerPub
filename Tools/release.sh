@@ -32,6 +32,28 @@ if [[ ! "$build" =~ '^[1-9][0-9]*$' ]]; then
   exit 64
 fi
 
+build_settings="$(
+  xcodebuild -project "Beddy Butler.xcodeproj" -scheme "Beddy Butler" \
+    -configuration Release -showBuildSettings 2>/dev/null
+)" || {
+  print -u2 "Could not read the Release build settings."
+  exit 1
+}
+build_setting() {
+  print -r -- "$build_settings" |
+    awk -F ' = ' -v key="$1" '
+      !found && $1 ~ ("^[[:space:]]*" key "$") { value = $2; found = 1 }
+      END { print value }
+    '
+}
+project_version="$(build_setting MARKETING_VERSION)"
+project_build="$(build_setting CURRENT_PROJECT_VERSION)"
+if [[ "$version" != "$project_version" || "$build" != "$project_build" ]]; then
+  print -u2 "Requested $version ($build) differs from the project's $project_version ($project_build)."
+  print -u2 "Update MARKETING_VERSION and CURRENT_PROJECT_VERSION in the Xcode project instead."
+  exit 65
+fi
+
 temporary_root="${temporary_base:A}"
 if [[ "$temporary_root" == "/" || "$temporary_root" == "${HOME:A}" || "$temporary_root" == "${root:A}" ]]; then
   print -u2 "Unsafe temporary directory: $temporary_base"

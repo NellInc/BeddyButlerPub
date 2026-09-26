@@ -51,7 +51,12 @@ final class ButlerMotionSKView: SKView {
     private var requestedVisibility = true
     private var renderGeneration = 0
     private weak var observedClipView: NSClipView?
+    private weak var observedWindow: NSWindow?
     private var visibilityTimer: Timer?
+    private var needsStaticRender = true
+    private var lastRenderedSize = CGSize.zero
+
+    var isVisibilityPollingActive: Bool { visibilityTimer != nil }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -74,36 +79,70 @@ final class ButlerMotionSKView: SKView {
         contentMode: ButlerRigContentMode,
         intensity: Float
     ) {
+        if self.motionEnabled != motionEnabled || requestedVisibility != isVisible {
+            needsStaticRender = true
+        }
         self.motionEnabled = motionEnabled
         requestedVisibility = isVisible
-        motionScene.configure(
+        if motionScene.configure(
             personality: personality,
             motionEnabled: motionEnabled,
             contentMode: contentMode,
             intensity: intensity
-        )
+        ) {
+            needsStaticRender = true
+        }
         updateRenderingState()
     }
 
     func stopRendering() {
         renderGeneration += 1
-        isPaused = true
         visibilityTimer?.invalidate()
         visibilityTimer = nil
         NotificationCenter.default.removeObserver(self)
+        // presentScene(_:) resets isPaused, so pause after detaching the scene.
         presentScene(nil)
+        isPaused = true
+        needsStaticRender = true
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        needsStaticRender = true
         observeScrollVisibility()
+        observeWindowVisibility()
         updateVisibilityTimer()
+        updateRenderingState()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        needsStaticRender = true
         updateRenderingState()
     }
 
     override func layout() {
         super.layout()
+        if bounds.size != lastRenderedSize {
+            lastRenderedSize = bounds.size
+            needsStaticRender = true
+        }
         updateRenderingState()
+    }
+
+    @objc private func windowOcclusionDidChange(_ notification: Notification) {
+        updateVisibilityTimer()
+        updateRenderingState()
+    }
+
+    @objc private func windowWillClose(_ notification: Notification) {
+        // The window still reports itself visible here, so stop polling directly.
+        // Reopening posts an occlusion change, which restarts the timer.
+        renderGeneration += 1
+        visibilityTimer?.invalidate()
+        visibilityTimer = nil
+        isPaused = true
+        needsStaticRender = true
     }
 
     @objc private func scrollBoundsDidChange(_ notification: Notification) {
@@ -117,7 +156,9 @@ final class ButlerMotionSKView: SKView {
     private func updateVisibilityTimer() {
         visibilityTimer?.invalidate()
         visibilityTimer = nil
-        guard window != nil else { return }
+        guard let window, window.isVisible,
+            permitsOccludedRendering || window.occlusionState.contains(.visible)
+        else { return }
         let timer = Timer(
             timeInterval: 0.4,
             target: self,
@@ -125,8 +166,30 @@ final class ButlerMotionSKView: SKView {
             userInfo: nil,
             repeats: true
         )
+        timer.tolerance = 0.2
         RunLoop.main.add(timer, forMode: .common)
         visibilityTimer = timer
+    }
+
+    private func observeWindowVisibility() {
+        let names = [NSWindow.didChangeOcclusionStateNotification, NSWindow.willCloseNotification]
+        for name in names {
+            NotificationCenter.default.removeObserver(self, name: name, object: observedWindow)
+        }
+        observedWindow = window
+        guard let window else { return }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowOcclusionDidChange),
+            name: NSWindow.didChangeOcclusionStateNotification,
+            object: window
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowWillClose),
+            name: NSWindow.willCloseNotification,
+            object: window
+        )
     }
 
     private func observeScrollVisibility() {
@@ -167,21 +230,28 @@ final class ButlerMotionSKView: SKView {
             && rectInWindow.intersects(windowContentRect)
 
         guard isWithinVisibleLayout else {
-            isPaused = true
             if scene != nil {
                 presentScene(nil)
             }
+            isPaused = true
+            needsStaticRender = true
             return
         }
 
         if scene == nil {
             presentScene(motionScene)
+            needsStaticRender = true
         }
 
         guard
             permitsOccludedRendering
                 || window?.occlusionState.contains(.visible) == true
         else {
+            isPaused = true
+            needsStaticRender = true
+            return
+        }
+        guard motionEnabled || needsStaticRender else {
             isPaused = true
             return
         }
@@ -191,6 +261,7 @@ final class ButlerMotionSKView: SKView {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self, self.renderGeneration == generation, !self.motionEnabled else { return }
             self.isPaused = true
+            self.needsStaticRender = false
         }
     }
 }
@@ -236,12 +307,13 @@ final class ButlerMotionScene: SKScene {
         applyCurrentPose()
     }
 
+    @discardableResult
     func configure(
         personality requestedPersonality: ButlerPersonality,
         motionEnabled requestedMotionEnabled: Bool,
         contentMode requestedContentMode: ButlerRigContentMode,
         intensity requestedIntensity: Float
-    ) {
+    ) -> Bool {
         let clampedIntensity = min(max(requestedIntensity, 0), 1.25)
         let personalityChanged = personality != requestedPersonality
         let motionChanged = motionEnabled != requestedMotionEnabled
@@ -264,9 +336,11 @@ final class ButlerMotionScene: SKScene {
         if motionChanged {
             lastUpdateTime = nil
         }
-        if personalityChanged || motionChanged || intensityChanged || contentModeChanged {
+        let changed = personalityChanged || motionChanged || intensityChanged || contentModeChanged
+        if changed {
             applyCurrentPose()
         }
+        return changed
     }
 
     func applyPose(at elapsedTime: TimeInterval) {

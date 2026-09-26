@@ -7,7 +7,7 @@ This document separates canonical source material, generated release assets, pub
 | Asset class | Canonical source | Derived or public copies | Automated evidence | Authority boundary |
 | --- | --- | --- | --- | --- |
 | Voice recordings | `Audio Sources/Originals`, 91 preserved MP3 files | `Beddy Butler/Sounds`, 103 normalized and split MP3 files | `python3 Tools/prepare_audio.py --check` and `Audio Sources/PROCESSING_REPORT.json` | The source code licence does not independently grant voice reuse rights |
-| Character artwork | `Artwork Sources/Characters`, three transparent 4K PNG masters | Rig and icon images in `Beddy Butler/Images.xcassets`, responsive WebP files in `Website/assets` | Xcode asset compilation, website validation, and visual review | Character publication and third party reuse require rights-holder authority |
+| Character artwork | `Artwork Sources/Characters`, three transparent 4K PNG masters | Rig images in `Beddy Butler/Images.xcassets`, responsive WebP files in `Website/assets` | Xcode asset compilation, website validation, and visual review | Character publication and third party reuse require rights-holder authority |
 | Application icon | `Artwork Sources/AppIcon/beddy-butler-2026-master-4k.png` | App icon set, website icons, social image, App Store screenshots | Xcode asset compilation, website validation, App Store metadata validation | Brand, name, and icon permission remain distinct from the BSD source licence |
 | Interface design | Native SwiftUI source and the Figma file named in `DESIGN_SYSTEM.md` | Native captures and App Store screenshot compositions | XCTest, runtime smoke, accessibility smoke, visual inspection | Screenshots must represent the accepted candidate and retain accurate credits |
 | Website and store copy | `Website` and `AppStore/en-GB` | GitHub Pages and App Store Connect | Website and metadata validators | Publication requires explicit destination and candidate approval |
@@ -34,6 +34,10 @@ An authoritative line by line transcript catalogue is not present. No release do
 5. Recreate App Store screenshots from accepted native captures after any visible product change.
 6. Record human visual approval for changed character, icon, or screenshot assets.
 
+## Legacy artwork
+
+`Artwork Sources/legacy` holds artwork that no longer ships and nothing references: the three 4K `*Icon` imagesets (byte-identical to the `Artwork Sources/Characters` masters), `AboutIcon` (byte-identical to the 1024 px app icon, which the About window and Preferences header now take from the application icon), the 2015 `Butler`, `ButlerLight`, `Moon`, `BedSlider` and `StartSlider` imagesets, and the 2015 `BBPREFS.png` Preferences screenshot. They sit outside the asset catalog, so they are not compiled into `Assets.car`. Move one back into `Beddy Butler/Images.xcassets` only when code references it.
+
 ## Bundle inventory
 
 Run this against every finished application bundle:
@@ -42,7 +46,7 @@ Run this against every finished application bundle:
 python3 Tools/validate_app_bundle.py \
   "/path/to/Beddy Butler.app" \
   --version 2.0.3 \
-  --build 613 \
+  --build 614 \
   --require-universal
 ```
 

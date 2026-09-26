@@ -35,7 +35,8 @@ struct AboutBeddyButlerView: View {
             BeddyBackdrop()
 
             VStack(spacing: 0) {
-                Image("AboutIcon")
+                // The full-bleed asset; recent macOS pads and masks applicationIconImage.
+                Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
@@ -116,7 +117,7 @@ struct AboutBeddyButlerView: View {
 
                 Text(ApplicationMetadata.copyrightLine)
                     .font(.system(size: 10))
-                    .foregroundStyle(BeddyPalette.faint)
+                    .foregroundStyle(BeddyPalette.muted)
                     .padding(.top, 23)
             }
             .frame(maxWidth: 410)

@@ -20,25 +20,11 @@ enum BeddyPalette {
     static let lineStrong = Color.white.opacity(0.20)
 }
 
-struct WindowMaterialView: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .underWindowBackground
-        view.blendingMode = .behindWindow
-        view.state = .followsWindowActiveState
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
-}
-
 struct BeddyBackdrop: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         ZStack {
-            WindowMaterialView()
-
             if reduceTransparency {
                 BeddyPalette.nightDeep
             } else {
@@ -83,6 +69,9 @@ struct BeddyCard<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var strongEdges: Bool { reduceTransparency || contrast == .increased }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -97,6 +86,7 @@ struct BeddyCard<Content: View>: View {
                 Text(title)
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(BeddyPalette.ink)
+                    .accessibilityAddTraits(.isHeader)
             }
 
             content()
@@ -129,7 +119,7 @@ struct BeddyCard<Content: View>: View {
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(
-                    reduceTransparency ? BeddyPalette.lineStrong : BeddyPalette.line,
+                    strongEdges ? BeddyPalette.lineStrong : BeddyPalette.line,
                     lineWidth: 1
                 )
         }
@@ -141,21 +131,33 @@ struct BeddyCard<Content: View>: View {
         )
         .foregroundStyle(BeddyPalette.ink)
         .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text(title))
     }
 }
 
 private struct GlassCapsuleModifier: ViewModifier {
     let tint: Color
 
+    @Environment(\.colorSchemeContrast) private var contrast
+
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
-            content.glassEffect(.regular.tint(tint.opacity(0.24)), in: Capsule())
+            content
+                .glassEffect(.regular.tint(tint.opacity(0.24)), in: Capsule())
+                .overlay {
+                    if contrast == .increased {
+                        Capsule().strokeBorder(BeddyPalette.lineStrong, lineWidth: 1)
+                    }
+                }
         } else {
             content
                 .background(.thinMaterial, in: Capsule())
                 .overlay {
-                    Capsule().strokeBorder(BeddyPalette.line, lineWidth: 1)
+                    Capsule().strokeBorder(
+                        contrast == .increased ? BeddyPalette.lineStrong : BeddyPalette.line,
+                        lineWidth: 1
+                    )
                 }
         }
     }
@@ -193,6 +195,7 @@ struct BeddyPrimaryButtonStyle: ButtonStyle {
 
 struct BeddySecondaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.colorSchemeContrast) private var contrast
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -205,7 +208,7 @@ struct BeddySecondaryButtonStyle: ButtonStyle {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(BeddyPalette.line, lineWidth: 1)
+                    .strokeBorder(contrast == .increased ? BeddyPalette.lineStrong : BeddyPalette.line, lineWidth: 1)
             }
             .opacity(isEnabled ? 1 : 0.38)
     }

@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import XCTest
 
@@ -6,10 +7,18 @@ import XCTest
 @MainActor
 private final class RecordingAudioPlayer: AudioPlaying {
     private(set) var playCount = 0
+    private(set) var stopCount = 0
+    private(set) var personalities: [ButlerPersonality] = []
 
     func play(_ personality: ButlerPersonality, volume: Double) throws -> URL {
         playCount += 1
-        return URL(fileURLWithPath: "/tmp/\(personality.rawValue).mp3")
+        personalities.append(personality)
+        // Mirrors the bundled clip names, which must never reach the interface.
+        return URL(fileURLWithPath: "/tmp/Previewed 20151210 - Nell Watson - \(personality.title).18tuned.mp3")
+    }
+
+    func stop() {
+        stopCount += 1
     }
 }
 
@@ -27,12 +36,19 @@ private final class RecordingVisualNotifier: VisualNotificationDelivering {
     }
 }
 
+@MainActor
+private final class TestClock {
+    var now: Date
+
+    init(_ now: Date) {
+        self.now = now
+    }
+}
+
 final class BeddyButlerTimerTests: XCTestCase {
     @MainActor
     func testFreshInstallWaitsForStartBeforeSchedulingOrDelivering() throws {
-        let suite = "BeddyButler.SetupTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButler.SetupTests")
         let settings = AppSettings(defaults: defaults)
         let audio = RecordingAudioPlayer()
         let scheduler = ButlerTimer(settings: settings, audioPlayer: audio)
@@ -463,9 +479,7 @@ final class BeddyButlerTimerTests: XCTestCase {
 
     @MainActor
     func testRememberedSnoozeAndFinishTonightPreserveSchedule() throws {
-        let suite = "BeddyButler.EverydayTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButler.EverydayTests")
         let settings = AppSettings(defaults: defaults)
         settings.completeOnboarding()
         settings.updateStartSeconds(21 * 3600)
@@ -493,8 +507,7 @@ final class BeddyButlerTimerTests: XCTestCase {
 
     @MainActor
     func testVisualDeliveryUsesPersistentBadgeWithoutPlayingAudio() throws {
-        let suiteName = "BeddyButlerVisualTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButlerVisualTests")
         let settings = AppSettings(defaults: defaults)
         settings.completeOnboarding()
         settings.updateNudgeDelivery(.visual)
@@ -508,7 +521,6 @@ final class BeddyButlerTimerTests: XCTestCase {
         )
         defer {
             scheduler.timer?.invalidate()
-            defaults.removePersistentDomain(forName: suiteName)
         }
 
         scheduler.deliverNudge()
@@ -529,8 +541,7 @@ final class BeddyButlerTimerTests: XCTestCase {
 
     @MainActor
     func testCombinedDeliveryPlaysAudioAndKeepsVisualBadge() throws {
-        let suiteName = "BeddyButlerBothTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButlerBothTests")
         let settings = AppSettings(defaults: defaults)
         settings.completeOnboarding()
         settings.updateNudgeDelivery(.both)
@@ -538,7 +549,6 @@ final class BeddyButlerTimerTests: XCTestCase {
         let scheduler = ButlerTimer(settings: settings, audioPlayer: audioPlayer)
         defer {
             scheduler.timer?.invalidate()
-            defaults.removePersistentDomain(forName: suiteName)
         }
 
         scheduler.deliverNudge()
@@ -553,9 +563,7 @@ final class BeddyButlerTimerTests: XCTestCase {
 
     @MainActor
     func testOverdueTimerDoesNotDeliverOutsideItsScheduledWindow() throws {
-        let suiteName = "BeddyButlerOverdueTimerTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButlerOverdueTimerTests")
         let settings = AppSettings(defaults: defaults)
         settings.completeOnboarding()
         settings.updateStartSeconds(21 * 3_600)
@@ -572,7 +580,6 @@ final class BeddyButlerTimerTests: XCTestCase {
         )
         defer {
             scheduler.timer?.invalidate()
-            defaults.removePersistentDomain(forName: suiteName)
         }
 
         currentDate = date(2026, 7, 22, 12, calendar: currentCalendar)
@@ -583,10 +590,8 @@ final class BeddyButlerTimerTests: XCTestCase {
     }
 
     @MainActor
-    func testWakeInsideWindowDeliversOneOverdueNudgeThenReschedules() throws {
-        let suiteName = "BeddyButlerWakeTimerTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
+    func testLateTimerFireInsideWindowDeliversOneNudgeThenReschedules() throws {
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButlerWakeTimerTests")
         let settings = AppSettings(defaults: defaults)
         settings.completeOnboarding()
         settings.updateStartSeconds(21 * 3_600)
@@ -603,7 +608,6 @@ final class BeddyButlerTimerTests: XCTestCase {
         )
         defer {
             scheduler.timer?.invalidate()
-            defaults.removePersistentDomain(forName: suiteName)
         }
 
         currentDate = date(2026, 7, 21, 22, 45, calendar: currentCalendar)
@@ -618,9 +622,7 @@ final class BeddyButlerTimerTests: XCTestCase {
 
     @MainActor
     func testBackwardClockCorrectionRecalculatesFromCorrectedWallTime() throws {
-        let suiteName = "BeddyButlerBackwardClockTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButlerBackwardClockTests")
         let settings = AppSettings(defaults: defaults)
         settings.completeOnboarding()
         settings.updateStartSeconds(21 * 3_600)
@@ -637,7 +639,6 @@ final class BeddyButlerTimerTests: XCTestCase {
         )
         defer {
             scheduler.timer?.invalidate()
-            defaults.removePersistentDomain(forName: suiteName)
         }
         let originalNudge = try XCTUnwrap(scheduler.nextNudge)
 
@@ -651,9 +652,7 @@ final class BeddyButlerTimerTests: XCTestCase {
 
     @MainActor
     func testSnoozeResumesAtPromisedTimeInsideWindow() throws {
-        let suiteName = "BeddyButlerSnoozeTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButlerSnoozeTests")
         let settings = AppSettings(defaults: defaults)
         settings.completeOnboarding()
         settings.updateStartSeconds(21 * 3_600)
@@ -671,7 +670,6 @@ final class BeddyButlerTimerTests: XCTestCase {
         )
         defer {
             scheduler.timer?.invalidate()
-            defaults.removePersistentDomain(forName: suiteName)
         }
 
         XCTAssertTrue(scheduler.canSnooze)
@@ -685,9 +683,7 @@ final class BeddyButlerTimerTests: XCTestCase {
 
     @MainActor
     func testSnoozeOutsideWindowDoesNotChangeMuteState() throws {
-        let suiteName = "BeddyButlerSnoozeTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButlerSnoozeTests")
         let settings = AppSettings(defaults: defaults)
         settings.completeOnboarding()
         settings.updateStartSeconds(21 * 3_600)
@@ -704,7 +700,6 @@ final class BeddyButlerTimerTests: XCTestCase {
         )
         defer {
             scheduler.timer?.invalidate()
-            defaults.removePersistentDomain(forName: suiteName)
         }
 
         XCTAssertFalse(scheduler.canSnooze)
@@ -716,9 +711,7 @@ final class BeddyButlerTimerTests: XCTestCase {
 
     @MainActor
     func testSnoozeThatReachesBedtimePausesUntilTomorrow() throws {
-        let suiteName = "BeddyButlerSnoozeTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButlerSnoozeTests")
         let settings = AppSettings(defaults: defaults)
         settings.completeOnboarding()
         settings.updateStartSeconds(21 * 3_600)
@@ -736,7 +729,6 @@ final class BeddyButlerTimerTests: XCTestCase {
         )
         defer {
             scheduler.timer?.invalidate()
-            defaults.removePersistentDomain(forName: suiteName)
         }
 
         scheduler.snooze(minutes: 30)
@@ -756,9 +748,7 @@ final class BeddyButlerTimerTests: XCTestCase {
 
     @MainActor
     func testFrequencyAndDeliveryEditsPreservePromisedSnoozeResume() throws {
-        let suiteName = "BeddyButlerSnoozeEditTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButlerSnoozeEditTests")
         let settings = AppSettings(defaults: defaults)
         settings.completeOnboarding()
         settings.updateStartSeconds(21 * 3_600)
@@ -774,7 +764,6 @@ final class BeddyButlerTimerTests: XCTestCase {
         )
         defer {
             scheduler.timer?.invalidate()
-            defaults.removePersistentDomain(forName: suiteName)
         }
 
         scheduler.snooze(minutes: 30)
@@ -788,9 +777,7 @@ final class BeddyButlerTimerTests: XCTestCase {
 
     @MainActor
     func testDisablingCurrentNightWhileSnoozedMovesToNextActiveWindow() throws {
-        let suiteName = "BeddyButlerSnoozeNightEditTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButlerSnoozeNightEditTests")
         let settings = AppSettings(defaults: defaults)
         settings.completeOnboarding()
         settings.updateStartSeconds(21 * 3_600)
@@ -807,7 +794,6 @@ final class BeddyButlerTimerTests: XCTestCase {
         )
         defer {
             scheduler.timer?.invalidate()
-            defaults.removePersistentDomain(forName: suiteName)
         }
 
         scheduler.snooze(minutes: 30)
@@ -822,5 +808,601 @@ final class BeddyButlerTimerTests: XCTestCase {
             DateComponents(day: 22, hour: 21, minute: 10)
         )
         XCTAssertGreaterThan(nextNudge, try XCTUnwrap(settings.mutedUntil))
+    }
+
+    // MARK: - Scheduler integration
+
+    @MainActor
+    private func activatedSettings(
+        _ label: String
+    ) throws -> (settings: AppSettings, defaults: UserDefaults) {
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButler.\(label)")
+        let settings = AppSettings(defaults: defaults)
+        settings.completeOnboarding()
+        settings.updateStartSeconds(21 * 3_600)
+        settings.updateBedSeconds(23 * 3_600)
+        return (settings, defaults)
+    }
+
+    @MainActor
+    private func makeScheduler(
+        _ settings: AppSettings,
+        clock: TestClock,
+        audio: RecordingAudioPlayer = RecordingAudioPlayer(),
+        notifier: RecordingVisualNotifier? = nil,
+        intervalProvider: @escaping (ClosedRange<TimeInterval>) -> TimeInterval = { $0.lowerBound }
+    ) -> ButlerTimer {
+        ButlerTimer(
+            settings: settings,
+            audioPlayer: audio,
+            now: { clock.now },
+            intervalProvider: intervalProvider,
+            escalationProvider: { 2 },
+            visualNotifier: notifier
+        )
+    }
+
+    @MainActor
+    func testCrossingWindowBoundariesPublishWithoutRedrawingTheNudge() throws {
+        let (settings, _) = try activatedSettings("Boundary")
+        let calendar = Calendar.autoupdatingCurrent
+        let clock = TestClock(date(2026, 7, 21, 20, calendar: calendar))
+        var draws = 0
+        let scheduler = makeScheduler(settings, clock: clock) { range in
+            draws += 1
+            return range.lowerBound
+        }
+        defer { scheduler.invalidateTimers() }
+        var publishes = 0
+        var posts = 0
+        let publishSubscription = scheduler.objectWillChange.sink { publishes += 1 }
+        let postSubscription = NotificationCenter.default
+            .publisher(for: .beddyScheduleDidChange, object: scheduler)
+            .sink { _ in posts += 1 }
+        defer {
+            publishSubscription.cancel()
+            postSubscription.cancel()
+        }
+        let drawsAfterInit = draws
+        let nudge = try XCTUnwrap(scheduler.nextNudge)
+
+        XCTAssertEqual(scheduler.boundaryTimer?.fireDate, date(2026, 7, 21, 21, calendar: calendar))
+        clock.now = date(2026, 7, 21, 21, calendar: calendar)
+        scheduler.refreshTimeDependentState()
+        XCTAssertTrue(scheduler.canSnooze)
+        XCTAssertGreaterThan(publishes, 0)
+        XCTAssertEqual(posts, 1)
+        XCTAssertEqual(scheduler.boundaryTimer?.fireDate, date(2026, 7, 21, 23, calendar: calendar))
+
+        clock.now = date(2026, 7, 21, 23, calendar: calendar)
+        scheduler.refreshTimeDependentState()
+        XCTAssertFalse(scheduler.canSnooze)
+        XCTAssertEqual(posts, 2)
+        XCTAssertEqual(scheduler.boundaryTimer?.fireDate, date(2026, 7, 22, 21, calendar: calendar))
+        XCTAssertEqual(draws, drawsAfterInit)
+        XCTAssertEqual(scheduler.nextNudge, nudge)
+    }
+
+    @MainActor
+    func testBoundaryRefreshClearsAnEndedPause() throws {
+        let (settings, _) = try activatedSettings("PauseBoundary")
+        let calendar = Calendar.autoupdatingCurrent
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: calendar))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.snooze(minutes: 20)
+        let mutedUntil = try XCTUnwrap(settings.mutedUntil)
+        XCTAssertEqual(scheduler.boundaryTimer?.fireDate, mutedUntil)
+
+        clock.now = mutedUntil
+        scheduler.refreshTimeDependentState()
+        XCTAssertNil(settings.mutedUntil)
+        XCTAssertTrue(scheduler.canSnooze)
+    }
+
+    @MainActor
+    func testStaleFinishTonightAfterBedtimePublishesAndDoesNotFinish() throws {
+        let (settings, _) = try activatedSettings("StaleFinish")
+        let calendar = Calendar.autoupdatingCurrent
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: calendar))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+        var publishes = 0
+        let subscription = scheduler.objectWillChange.sink { publishes += 1 }
+        defer { subscription.cancel() }
+
+        clock.now = date(2026, 7, 21, 23, 5, calendar: calendar)
+        scheduler.finishTonight()
+
+        XCTAssertGreaterThan(publishes, 0)
+        XCTAssertNil(settings.finishedWindowEnd)
+        XCTAssertNil(settings.mutedUntil)
+        XCTAssertFalse(scheduler.hasFinishedTonight)
+    }
+
+    @MainActor
+    func testUnrelatedChangesAndActivationKeepThePendingNudge() throws {
+        let (settings, _) = try activatedSettings("Preserve")
+        settings.updateFrequencyMinutes(10)
+        let calendar = Calendar.autoupdatingCurrent
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: calendar))
+        var draws = 0
+        let scheduler = makeScheduler(settings, clock: clock) { range in
+            draws += 1
+            return range.lowerBound + Double(draws) * 17
+        }
+        defer { scheduler.invalidateTimers() }
+        let original = try XCTUnwrap(scheduler.nextNudge)
+        let drawsAfterInit = draws
+
+        settings.updateVoiceVolume(0.35)
+        settings.updatePrimaryScheduleName("Weeknights")
+        clock.now = clock.now.addingTimeInterval(120)
+        scheduler.recalculate(preservingPendingNudge: true)
+        settings.updatePersonality(.insistent)
+
+        XCTAssertEqual(scheduler.nextNudge, original)
+        XCTAssertEqual(draws, drawsAfterInit)
+        XCTAssertEqual(scheduler.nextPersonality, .insistent)
+        XCTAssertEqual(scheduler.timer?.fireDate, original)
+    }
+
+    @MainActor
+    func testScheduleAffectingChangesRedrawThePendingNudge() throws {
+        let (settings, _) = try activatedSettings("Redraw")
+        settings.updateFrequencyMinutes(10)
+        let calendar = Calendar.autoupdatingCurrent
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: calendar))
+        var draws = 0
+        let scheduler = makeScheduler(settings, clock: clock) { range in
+            draws += 1
+            return range.lowerBound + Double(draws) * 17
+        }
+        defer { scheduler.invalidateTimers() }
+        let original = try XCTUnwrap(scheduler.nextNudge)
+
+        settings.updateFrequencyMinutes(2)
+        let shorter = try XCTUnwrap(scheduler.nextNudge)
+        XCTAssertLessThan(shorter, original)
+
+        let drawsBeforeEdit = draws
+        settings.updateStartSeconds(20 * 3_600)
+        XCTAssertEqual(draws, drawsBeforeEdit + 1)
+        XCTAssertNotEqual(scheduler.nextNudge, shorter)
+
+        let drawsBeforeSleep = draws
+        scheduler.invalidateTimers()
+        scheduler.recalculate(preservingPendingNudge: true)
+        XCTAssertEqual(draws, drawsBeforeSleep + 1)
+        XCTAssertEqual(scheduler.timer?.isValid, true)
+    }
+
+    @MainActor
+    func testResumeMidSnoozeRedrawsInsteadOfKeepingTheSnoozeEnd() throws {
+        let (settings, _) = try activatedSettings("ResumeRedraw")
+        let calendar = Calendar.autoupdatingCurrent
+        let clock = TestClock(date(2026, 7, 21, 22, 50, calendar: calendar))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.snooze(minutes: 5)
+        XCTAssertEqual(scheduler.nextNudge, clock.now.addingTimeInterval(5 * 60))
+        scheduler.resumeNudges()
+
+        // Without the snapshot check, the 22:55 snooze end would be kept as the next nudge.
+        XCTAssertNil(settings.mutedUntil)
+        XCTAssertEqual(scheduler.nextNudge, clock.now.addingTimeInterval(AppSettings.defaultFrequencyMinutes * 60))
+    }
+
+    @MainActor
+    func testExpiredOneNightAdjustmentIsClearedWithoutANestedReschedule() throws {
+        let (settings, _) = try activatedSettings("ExpiredOverride")
+        let calendar = Calendar.autoupdatingCurrent
+        settings.enableTonightOverride(on: date(2026, 7, 20, 20, calendar: calendar), calendar: calendar)
+        XCTAssertNotNil(settings.tonightOverrideDate)
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: calendar))
+        var draws = 0
+        var posts = 0
+        let subscription = NotificationCenter.default
+            .publisher(for: .beddySettingsDidChange, object: settings)
+            .sink { _ in posts += 1 }
+        defer { subscription.cancel() }
+
+        let scheduler = makeScheduler(settings, clock: clock) { range in
+            draws += 1
+            return range.lowerBound
+        }
+        defer { scheduler.invalidateTimers() }
+
+        XCTAssertNil(settings.tonightOverrideDate)
+        XCTAssertEqual(draws, 1)
+        XCTAssertEqual(posts, 0)
+        XCTAssertEqual(scheduler.timer?.fireDate, scheduler.nextNudge)
+    }
+
+    func testEqualBeginAndBedTimesHaveNoWindow() {
+        let calendar = calendar()
+        let now = date(2026, 7, 21, 20, calendar: calendar)
+        XCTAssertNil(
+            ScheduleCalculator(calendar: calendar).nextNudge(
+                after: now,
+                interval: 10 * 60,
+                startSeconds: 22 * 3_600,
+                bedSeconds: 22 * 3_600
+            )
+        )
+    }
+
+    @MainActor
+    func testEqualBeginAndBedTimesScheduleNothing() throws {
+        let (settings, _) = try activatedSettings("EqualTimes")
+        settings.updateBedSeconds(21 * 3_600)
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        XCTAssertNil(scheduler.nextNudge)
+        XCTAssertNil(scheduler.timer)
+        XCTAssertFalse(scheduler.canSnooze)
+        XCTAssertEqual(scheduler.lastEvent, "No valid bedtime window is configured.")
+    }
+
+    func testWindowBeginningInsideSpringForwardGapStartsAtFirstValidInstant() throws {
+        let london = calendar()
+        let londonWindow = try XCTUnwrap(
+            ScheduleCalculator(calendar: london).window(
+                containingOrAfter: date(2026, 3, 29, 0, calendar: london),
+                startSeconds: 1 * 3_600 + 30 * 60,
+                bedSeconds: 2 * 3_600 + 15 * 60
+            )
+        )
+        XCTAssertEqual(
+            london.dateComponents([.day, .hour, .minute], from: londonWindow.start),
+            DateComponents(day: 29, hour: 2, minute: 0)
+        )
+        XCTAssertEqual(
+            london.dateComponents([.day, .hour, .minute], from: londonWindow.end),
+            DateComponents(day: 29, hour: 2, minute: 15)
+        )
+
+        let santiago = calendar(timeZone: "America/Santiago")
+        let beforeGap = date(2026, 9, 5, 23, calendar: santiago)
+        let santiagoWindow = try XCTUnwrap(
+            ScheduleCalculator(calendar: santiago).window(
+                containingOrAfter: beforeGap,
+                startSeconds: 30 * 60,
+                bedSeconds: 1 * 3_600 + 30 * 60
+            )
+        )
+        XCTAssertEqual(
+            santiago.dateComponents([.day, .hour, .minute], from: santiagoWindow.start),
+            DateComponents(day: 6, hour: 1, minute: 0)
+        )
+        XCTAssertEqual(santiagoWindow.duration, 30 * 60)
+
+        // A window lying wholly inside the gap has no duration, so that night is skipped.
+        let emptyWindow = try XCTUnwrap(
+            ScheduleCalculator(calendar: santiago).window(
+                containingOrAfter: beforeGap,
+                startSeconds: 30 * 60,
+                bedSeconds: 1 * 3_600
+            )
+        )
+        XCTAssertEqual(santiago.component(.day, from: emptyWindow.start), 7)
+    }
+
+    @MainActor
+    func testProgressiveCeilingBelowSelectedPersonalityDoesNotSoftenNudges() throws {
+        let (settings, _) = try activatedSettings("Ceiling")
+        settings.updatePersonality(.zombie)
+        settings.updateMaximumPersonality(.shy)
+        settings.updateProgressiveMode(true)
+        let audio = RecordingAudioPlayer()
+        let clock = TestClock(date(2026, 7, 21, 21, 5, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock, audio: audio)
+        defer { scheduler.invalidateTimers() }
+
+        XCTAssertEqual(settings.effectiveMaximumPersonality, .zombie)
+        XCTAssertEqual(scheduler.nextPersonality, .zombie)
+        clock.now = try XCTUnwrap(scheduler.nextNudge)
+        scheduler.handleTimerFire()
+        XCTAssertEqual(audio.personalities, [.zombie])
+    }
+
+    @MainActor
+    func testProgressiveEscalationStopsAtTheCeiling() throws {
+        let (settings, _) = try activatedSettings("Escalation")
+        settings.updateProgressiveMode(true)
+        settings.updateMaximumPersonality(.insistent)
+        let audio = RecordingAudioPlayer()
+        let clock = TestClock(date(2026, 7, 21, 21, 5, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock, audio: audio)
+        defer { scheduler.invalidateTimers() }
+
+        for _ in 0..<7 {
+            clock.now = try XCTUnwrap(scheduler.nextNudge)
+            scheduler.handleTimerFire()
+        }
+
+        XCTAssertEqual(audio.playCount, 7)
+        XCTAssertEqual(Array(audio.personalities.prefix(2)), [.shy, .shy])
+        XCTAssertTrue(audio.personalities.contains(.insistent))
+        XCTAssertFalse(audio.personalities.contains(.zombie))
+    }
+
+    @MainActor
+    func testProgressiveModeDoesNotEscalateVisualOnlyNudges() throws {
+        let (settings, _) = try activatedSettings("VisualProgressive")
+        settings.updateProgressiveMode(true)
+        settings.updateNudgeDelivery(.visual)
+        let clock = TestClock(date(2026, 7, 21, 21, 5, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        for _ in 0..<4 {
+            clock.now = try XCTUnwrap(scheduler.nextNudge)
+            scheduler.handleTimerFire()
+        }
+
+        XCTAssertEqual(settings.pendingVisualNudgeCount, 4)
+        XCTAssertEqual(scheduler.nextPersonality, .shy)
+    }
+
+    @MainActor
+    func testPauseTonightInsideAndBeforeWindowEndsAtBedtime() throws {
+        let calendar = Calendar.autoupdatingCurrent
+        for hour in [22, 12] {
+            let (settings, _) = try activatedSettings("PauseTonight")
+            let notifier = RecordingVisualNotifier()
+            let clock = TestClock(date(2026, 7, 21, hour, calendar: calendar))
+            let scheduler = makeScheduler(settings, clock: clock, notifier: notifier)
+            defer { scheduler.invalidateTimers() }
+
+            scheduler.muteForCurrentWindow()
+
+            XCTAssertEqual(settings.mutedUntil, date(2026, 7, 21, 23, calendar: calendar), "\(hour)")
+            XCTAssertEqual(notifier.clearCount, 1, "\(hour)")
+            XCTAssertFalse(scheduler.isSnoozed, "\(hour)")
+            XCTAssertEqual(
+                calendar.dateComponents([.day, .hour], from: try XCTUnwrap(scheduler.nextNudge)),
+                DateComponents(day: 22, hour: 21),
+                "\(hour)"
+            )
+        }
+    }
+
+    @MainActor
+    func testSnoozeEndDeliversOneNudge() throws {
+        let (settings, _) = try activatedSettings("SnoozeEnd")
+        let audio = RecordingAudioPlayer()
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock, audio: audio)
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.snooze(minutes: 20)
+        clock.now = try XCTUnwrap(settings.mutedUntil)
+        scheduler.handleTimerFire()
+
+        XCTAssertEqual(audio.playCount, 1)
+        XCTAssertNil(settings.mutedUntil)
+        XCTAssertGreaterThan(try XCTUnwrap(scheduler.nextNudge), clock.now)
+    }
+
+    @MainActor
+    func testWhileSnoozedTheUserCanFinishOrPauseTonight() throws {
+        let calendar = Calendar.autoupdatingCurrent
+        let (settings, _) = try activatedSettings("SnoozedActions")
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: calendar))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.snooze(minutes: 20)
+        XCTAssertTrue(scheduler.isSnoozed)
+        XCTAssertFalse(scheduler.canSnooze)
+        scheduler.finishTonight()
+        XCTAssertTrue(scheduler.hasFinishedTonight)
+        XCTAssertEqual(settings.mutedUntil, date(2026, 7, 21, 23, calendar: calendar))
+        XCTAssertFalse(scheduler.isSnoozed)
+
+        scheduler.undoFinishTonight()
+        scheduler.snooze(minutes: 20)
+        scheduler.muteForCurrentWindow()
+        XCTAssertEqual(settings.mutedUntil, date(2026, 7, 21, 23, calendar: calendar))
+        XCTAssertFalse(scheduler.isSnoozed)
+    }
+
+    @MainActor
+    func testSnoozeClampedToBedtimeCountsAsPausedNotSnoozed() throws {
+        let (settings, _) = try activatedSettings("ClampedSnooze")
+        let clock = TestClock(date(2026, 7, 21, 22, 50, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.snooze(minutes: 30)
+
+        XCTAssertTrue(settings.isMuted(at: clock.now))
+        XCTAssertFalse(scheduler.isSnoozed)
+    }
+
+    @MainActor
+    func testStaleSnoozeDoesNotShortenAPause() throws {
+        let calendar = Calendar.autoupdatingCurrent
+        let (settings, _) = try activatedSettings("StaleSnooze")
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: calendar))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.muteForCurrentWindow()
+        scheduler.snooze(minutes: 10)
+
+        XCTAssertEqual(settings.mutedUntil, date(2026, 7, 21, 23, calendar: calendar))
+        XCTAssertEqual(scheduler.lastEvent, "Nudges are paused for this bedtime window.")
+    }
+
+    @MainActor
+    func testFinishAndPauseFollowALaterBedtime() throws {
+        let calendar = Calendar.autoupdatingCurrent
+        for finishes in [true, false] {
+            let (settings, defaults) = try activatedSettings("WidenedWindow")
+            let clock = TestClock(date(2026, 7, 21, 22, calendar: calendar))
+            let scheduler = makeScheduler(settings, clock: clock)
+            defer { scheduler.invalidateTimers() }
+
+            if finishes {
+                scheduler.finishTonight()
+            } else {
+                scheduler.muteForCurrentWindow()
+            }
+            settings.updateBedSeconds(0)
+
+            let midnight = date(2026, 7, 22, 0, calendar: calendar)
+            XCTAssertEqual(settings.mutedUntil, midnight, "finish: \(finishes)")
+            XCTAssertEqual(scheduler.hasFinishedTonight, finishes)
+            XCTAssertEqual(
+                calendar.dateComponents([.day, .hour], from: try XCTUnwrap(scheduler.nextNudge)),
+                DateComponents(day: 22, hour: 21),
+                "finish: \(finishes)"
+            )
+            XCTAssertEqual(AppSettings(defaults: defaults).mutedUntil, midnight)
+        }
+    }
+
+    @MainActor
+    func testShortSnoozeDoesNotFollowALaterBedtime() throws {
+        let (settings, _) = try activatedSettings("SnoozeWidened")
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.snooze(minutes: 20)
+        settings.updateBedSeconds(0)
+
+        XCTAssertEqual(settings.mutedUntil, clock.now.addingTimeInterval(20 * 60))
+        XCTAssertEqual(scheduler.nextNudge, clock.now.addingTimeInterval(20 * 60))
+    }
+
+    @MainActor
+    func testResumeAfterFinishingRestoresSetAsideBadges() throws {
+        let (settings, _) = try activatedSettings("ResumeFinished")
+        settings.updateNudgeDelivery(.visual)
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+        scheduler.deliverNudge()
+        scheduler.deliverNudge()
+
+        scheduler.finishTonight()
+        XCTAssertEqual(scheduler.pendingVisualNudgeCount, 0)
+        scheduler.resumeNudges()
+
+        XCTAssertEqual(scheduler.pendingVisualNudgeCount, 2)
+        XCTAssertFalse(scheduler.hasFinishedTonight)
+        XCTAssertNil(settings.mutedUntil)
+    }
+
+    @MainActor
+    func testVisualPreviewShowsOneBadgeAndNoneAfterFinishing() throws {
+        let (settings, _) = try activatedSettings("Preview")
+        settings.updateNudgeDelivery(.visual)
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.previewSelectedNudge()
+        scheduler.previewSelectedNudge()
+        XCTAssertEqual(scheduler.pendingVisualNudgeCount, 1)
+
+        scheduler.acknowledgeVisualNudge()
+        scheduler.finishTonight()
+        scheduler.previewSelectedNudge()
+        XCTAssertEqual(scheduler.pendingVisualNudgeCount, 0)
+        XCTAssertEqual(scheduler.lastEvent, "Good night.")
+    }
+
+    @MainActor
+    func testStatusMessagesNeverExposeClipFileNames() throws {
+        let (settings, _) = try activatedSettings("ClipNames")
+        settings.updateNudgeDelivery(.both)
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.previewNudge(.insistent)
+        XCTAssertTrue(scheduler.lastEvent.hasPrefix("Previewed an Insistent reminder."))
+        assertNoClipFileName(in: scheduler.lastEvent)
+
+        scheduler.deliverNudge()
+        XCTAssertTrue(scheduler.lastEvent.hasPrefix("Shy played at "))
+        assertNoClipFileName(in: scheduler.lastEvent)
+    }
+
+    private func assertNoClipFileName(in message: String, line: UInt = #line) {
+        for fragment in [".mp3", "20151210", "Nell Watson", "18tuned"] {
+            XCTAssertFalse(message.contains(fragment), "\(message) leaks \(fragment)", line: line)
+        }
+    }
+
+    func testPlaybackErrorsDoNotNameTheClipFile() {
+        let clip = URL(fileURLWithPath: "/tmp/20151210 - Nell Watson - Shy.18tuned.mp3")
+        let errors: [AudioPlayerError] = [
+            .playbackRefused(clip),
+            .playbackFailed(clip, CocoaError(.fileReadCorruptFile)),
+        ]
+        for error in errors {
+            let description = error.localizedDescription
+            XCTAssertFalse(description.contains("20151210"), description)
+            XCTAssertFalse(description.contains(".mp3"), description)
+        }
+    }
+
+    @MainActor
+    func testQuietingActionsStopAClipThatIsStillPlaying() throws {
+        let (settings, _) = try activatedSettings("StopAudio")
+        settings.updateNudgeDelivery(.both)
+        let audio = RecordingAudioPlayer()
+        let clock = TestClock(date(2026, 7, 21, 21, 30, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock, audio: audio)
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.deliverNudge()
+        scheduler.acknowledgeVisualNudge()
+        XCTAssertEqual(audio.stopCount, 1)
+
+        scheduler.snooze(minutes: 10)
+        XCTAssertEqual(audio.stopCount, 2)
+        scheduler.resumeNudges()
+        XCTAssertEqual(audio.stopCount, 2, "Resuming must not stop audio")
+
+        scheduler.snooze(minutes: 120)  // Reaches bedtime, so it pauses the window.
+        XCTAssertEqual(audio.stopCount, 3)
+        scheduler.resumeNudges()
+
+        scheduler.muteForCurrentWindow()
+        XCTAssertEqual(audio.stopCount, 4)
+        scheduler.resumeNudges()
+
+        scheduler.finishTonight()
+        XCTAssertEqual(audio.stopCount, 5)
+        scheduler.undoFinishTonight()
+        scheduler.previewSelectedNudge()
+        XCTAssertEqual(audio.stopCount, 5, "Undo and preview must not stop audio")
+    }
+
+    @MainActor
+    func testWakeInsideWindowRecalculatesWithoutCatchingUp() throws {
+        let (settings, _) = try activatedSettings("Wake")
+        let audio = RecordingAudioPlayer()
+        let clock = TestClock(date(2026, 7, 21, 20, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock, audio: audio)
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.invalidateTimers()  // The Mac sleeps through the first nudge.
+        clock.now = date(2026, 7, 21, 22, 45, calendar: .autoupdatingCurrent)
+        scheduler.recalculate()  // What systemDidWake does.
+
+        XCTAssertEqual(audio.playCount, 0)
+        XCTAssertGreaterThan(try XCTUnwrap(scheduler.nextNudge), clock.now)
+        XCTAssertEqual(scheduler.timer?.isValid, true)
     }
 }

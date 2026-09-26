@@ -1,1 +1,1 @@
-Version 2.0.3 adds animated Butlers, voice previews, flexible snooze choices and an easy way to finish for tonight. Reminders now wait until you press Start Beddy Butler. Includes clearer status displays and menu fixes.
+Version 2.0.3 adds animated Butlers, flexible snooze choices and an easy way to finish for tonight. Reminders now wait until you press Start Beddy Butler. Includes clearer status displays and menu fixes.

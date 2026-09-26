@@ -3,16 +3,22 @@ import SwiftUI
 
 @MainActor
 enum MenuBarIcon {
-    static func make(pendingVisualNudge: Bool = false) -> NSImage? {
+    enum State {
+        case normal
+        case muted
+        case pendingVisualNudge
+    }
+
+    static func make(state: State = .normal) -> NSImage? {
+        let symbols: (primary: String, fallback: String) =
+            switch state {
+            case .normal: ("moon.zzz.fill", "moon.fill")
+            case .muted: ("moon.zzz", "moon")
+            case .pendingVisualNudge: ("bell.badge.fill", "exclamationmark.circle.fill")
+            }
         let baseImage =
-            NSImage(
-                systemSymbolName: pendingVisualNudge ? "bell.badge.fill" : "moon.zzz.fill",
-                accessibilityDescription: "Beddy Butler"
-            )
-            ?? NSImage(
-                systemSymbolName: pendingVisualNudge ? "exclamationmark.circle.fill" : "moon.fill",
-                accessibilityDescription: "Beddy Butler"
-            )
+            NSImage(systemSymbolName: symbols.primary, accessibilityDescription: "Beddy Butler")
+            ?? NSImage(systemSymbolName: symbols.fallback, accessibilityDescription: "Beddy Butler")
         let configuration = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
         let image = baseImage?.withSymbolConfiguration(configuration)
         image?.isTemplate = true
@@ -101,10 +107,15 @@ enum BeddyButlerApplication {
     @MainActor
     static func main() {
         let application = NSApplication.shared
+        // As the XCTest host, run without the app itself: no scheduler, status item or windows, and no real defaults.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            application.setActivationPolicy(.accessory)
+            application.run()
+            return
+        }
         let delegate = AppDelegate()
         application.delegate = delegate
         application.setActivationPolicy(.accessory)
-        application.finishLaunching()
         withExtendedLifetime(delegate) {
             application.run()
         }
@@ -154,8 +165,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
     private var snoozeItem: NSMenuItem?
     private var muteItem: NSMenuItem?
     private var launchAtLoginItem: NSMenuItem?
+    private var resumeItem: NSMenuItem?
+    /// Set while this copy defers to an earlier running copy and waits to quit.
+    private var isHandingOff = false
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = makeMainMenu()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if handOffToRunningInstance() { return }
         _ = scheduler
         configureNotificationActions()
         configureStatusItem()
@@ -189,8 +208,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         }
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !isHandingOff else { return false }
+        // Relaunching is the way back in when the status item is hidden, so always show Preferences.
+        statusPopover.performClose(nil)
+        showPreferences(nil)
+        return false
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
-        scheduler.recalculate()
+        guard !isHandingOff else { return }
+        scheduler.recalculate(preservingPendingNudge: true)
         loginItemManager.refresh()
         notificationManager.refreshAuthorizationState(settings: settings)
     }
@@ -202,6 +230,92 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
 
     func menuWillOpen(_ menu: NSMenu) {
         refreshMenuState()
+    }
+
+    /// An accessory app shows no menu bar, but key equivalents such as Close, Copy and Paste
+    /// still route through the main menu.
+    func makeMainMenu() -> NSMenu {
+        let appMenu = NSMenu(title: "Beddy Butler")
+        appMenu.addItem(makeItem("About Beddy Butler", action: #selector(showAbout)))
+        appMenu.addItem(.separator())
+        appMenu.addItem(makeItem("Preferences…", action: #selector(showPreferences), keyEquivalent: ","))
+        appMenu.addItem(.separator())
+        appMenu.addItem(
+            NSMenuItem(title: "Hide Beddy Butler", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        )
+        appMenu.addItem(
+            NSMenuItem(
+                title: "Quit Beddy Butler",
+                action: #selector(NSApplication.terminate(_:)),
+                keyEquivalent: "q"
+            )
+        )
+
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"))
+        let redo = NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(redo)
+        editMenu.addItem(.separator())
+        editMenu.addItem(NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+        editMenu.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        editMenu.addItem(NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        editMenu.addItem(NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+        windowMenu.addItem(
+            NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        )
+
+        let mainMenu = NSMenu(title: "Main Menu")
+        for submenu in [appMenu, editMenu, windowMenu] {
+            let item = NSMenuItem(title: submenu.title, action: nil, keyEquivalent: "")
+            item.submenu = submenu
+            mainMenu.addItem(item)
+        }
+        return mainMenu
+    }
+
+    /// Returns true when another copy is already running; that copy is brought forward and this one quits.
+    private func handOffToRunningInstance() -> Bool {
+        let environment = ProcessInfo.processInfo.environment
+        let isolatedRunKeys = [
+            "XCTestConfigurationFilePath", "BEDDY_BUTLER_DEFAULTS_SUITE", "BEDDY_BUTLER_CAPTURE_UI_DIR",
+            "BEDDY_MENU_PROOF_DIR", "BEDDY_BUTLER_OPEN_ABOUT", "BEDDY_BUTLER_OPEN_PREFERENCES",
+        ]
+        let currentProcess = ProcessInfo.processInfo.processIdentifier
+        guard NSClassFromString("XCTestCase") == nil,
+            !isolatedRunKeys.contains(where: { environment[$0] != nil }),
+            let bundleIdentifier = Bundle.main.bundleIdentifier,
+            let ownLaunch = NSRunningApplication.current.launchDate,
+            // Only an earlier copy wins, so two copies launched together never both quit.
+            let other = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+                .filter({
+                    !$0.isTerminated && $0.processIdentifier != currentProcess
+                        && ($0.launchDate.map { $0 < ownLaunch } ?? false)
+                })
+                .min(by: { ($0.launchDate ?? .distantFuture) < ($1.launchDate ?? .distantFuture) })
+        else { return false }
+
+        isHandingOff = true
+
+        other.activate()
+        guard let otherURL = other.bundleURL else {
+            NSApp.terminate(nil)
+            return true
+        }
+        // Opening a running app sends it a reopen event, so it presents Preferences.
+        NSWorkspace.shared.openApplication(at: otherURL, configuration: NSWorkspace.OpenConfiguration()) { _, _ in
+            Task { @MainActor in NSApp.terminate(nil) }
+        }
+        // This copy never creates a status item, so it must not linger if the handoff stalls.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { NSApp.terminate(nil) }
+        return true
+    }
+
+    static func isMenuRequest(type: NSEvent.EventType?, modifierFlags: NSEvent.ModifierFlags) -> Bool {
+        type == .rightMouseUp || (type == .leftMouseUp && modifierFlags.contains(.control))
     }
 
     private func configureStatusItem() {
@@ -240,9 +354,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         nextNudgeItem = status
 
         let acknowledge = makeItem(
-            "Acknowledge Visual Nudge",
-            action: #selector(acknowledgeVisualNudge),
-            keyEquivalent: "a"
+            "Acknowledge Badge",
+            action: #selector(acknowledgeVisualNudge)
         )
         acknowledge.isHidden = true
         menu.addItem(acknowledge)
@@ -251,11 +364,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         menu.addItem(.separator())
         menu.addItem(makeItem("Preferences…", action: #selector(showPreferences), keyEquivalent: ","))
 
-        let preview = makeItem("Hear a Butler Sample", action: #selector(previewButler), keyEquivalent: "p")
+        let preview = makeItem("Hear a Butler Sample", action: #selector(previewButler))
         menu.addItem(preview)
         previewItem = preview
 
-        let snooze = makeItem("Snooze 30 Minutes", action: #selector(snooze), keyEquivalent: "s")
+        let snooze = makeItem("Snooze 30 Minutes", action: #selector(snooze))
         snooze.toolTip = "Stay quiet for 30 minutes, then nudge immediately"
         menu.addItem(snooze)
         snoozeItem = snooze
@@ -265,13 +378,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         menu.addItem(mute)
         muteItem = mute
 
+        // While snoozed, the toggle above offers Pause for Tonight, so Resume needs its own item.
+        let resume = makeItem("Resume Nudges", action: #selector(resumeFromMenu))
+        resume.isHidden = true
+        menu.addItem(resume)
+        resumeItem = resume
+
         menu.addItem(.separator())
 
         let launchAtLogin = makeItem("Open at Login", action: #selector(toggleLaunchAtLogin))
         menu.addItem(launchAtLogin)
         launchAtLoginItem = launchAtLogin
 
-        menu.addItem(makeItem("Beddy Butler Website…", action: #selector(openWebsite), keyEquivalent: "w"))
+        menu.addItem(makeItem("Beddy Butler Website…", action: #selector(openWebsite)))
         menu.addItem(makeItem("Send Feedback…", action: #selector(sendFeedback)))
         menu.addItem(makeItem("Show Welcome Guide", action: #selector(showWelcomeGuide)))
         menu.addItem(makeItem("About Beddy Butler", action: #selector(showAbout)))
@@ -285,7 +404,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
 
     @objc private func toggleStatusPanel(_ sender: Any?) {
         guard let button = statusItem?.button else { return }
-        if NSApp.currentEvent?.type == .rightMouseUp {
+        let event = NSApp.currentEvent
+        if Self.isMenuRequest(type: event?.type, modifierFlags: event?.modifierFlags ?? []) {
             statusPopover.performClose(nil)
             showStatusMenu(relativeTo: button)
         } else if statusPopover.isShown {
@@ -313,9 +433,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
 
     func popoverDidShow(_ notification: Notification) {
         positionStatusPopoverClearOfScreenObstructions()
+        // Highlighting synchronously is cleared when the click that opened the popover ends.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, statusPopover.isShown else { return }
+            statusItem?.button?.highlight(true)
+        }
+    }
+
+    func popoverWillClose(_ notification: Notification) {
+        statusItem?.button?.highlight(false)
     }
 
     private func showStatusPopover(relativeTo button: NSStatusBarButton) {
+        // The popover is built once; refresh clock-dependent state such as an ended pause.
+        scheduler.refreshTimeDependentState()
         statusPopover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         statusPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         guard statusPopover.isShown else {
@@ -331,7 +462,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
             guard
                 ProcessInfo.processInfo.environment["BEDDY_BUTLER_DEFAULTS_SUITE"]?.hasPrefix("BeddyButler.MenuProof.")
                     == true,
-                let menu = statusMenu, let button = statusItem?.button
+                statusMenu != nil, let button = statusItem?.button
             else { return }
             let output = URL(fileURLWithPath: directory)
             try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -387,11 +518,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
 
     private func showStatusMenu(relativeTo button: NSStatusBarButton) {
         refreshMenuState()
-        statusMenu?.popUp(
-            positioning: nil,
-            at: NSPoint(x: 0, y: button.bounds.height + 4),
-            in: button
-        )
+        // Attaching the menu for one click lets AppKit place it and highlight the button while it is open.
+        statusItem?.menu = statusMenu
+        button.performClick(nil)
+        statusItem?.menu = nil
     }
 
     private func positionStatusPopoverClearOfScreenObstructions() {
@@ -448,38 +578,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         case .both:
             previewItem?.title = "Preview Sound + Badge"
         }
+        previewItem?.isEnabled = !scheduler.hasFinishedTonight
         acknowledgeVisualItem?.isHidden = !scheduler.visualNudgePending
         snoozeItem?.title = "Snooze \(settings.snoozeMinutes) Minutes"
         snoozeItem?.toolTip = "Stay quiet for \(settings.snoozeMinutes) minutes, or until bedtime if sooner"
         snoozeItem?.isHidden = settings.isMuted()
         snoozeItem?.isEnabled = scheduler.canSnooze
-        muteItem?.title = settings.isMuted() ? "Resume Nudges" : "Pause for Tonight"
-        muteItem?.state = settings.isMuted() ? .on : .off
+        // While snoozed, the menu still offers Pause for Tonight.
+        let offersResume = settings.isMuted() && !scheduler.isSnoozed
+        muteItem?.title = offersResume ? "Resume Nudges" : "Pause for Tonight"
         muteItem?.isEnabled = settings.hasActivatedSchedule
+        resumeItem?.isHidden = !(settings.isMuted() && scheduler.isSnoozed)
 
         if let button = statusItem?.button {
-            button.image = MenuBarIcon.make(pendingVisualNudge: scheduler.visualNudgePending)
-            button.setAccessibilityLabel(
-                scheduler.visualNudgePending
-                    ? "Beddy Butler, \(pendingVisualDescription)"
-                    : "Beddy Butler"
-            )
+            let mutedUntil = settings.isMuted() ? settings.mutedUntil : nil
+            if scheduler.visualNudgePending {
+                button.image = MenuBarIcon.make(state: .pendingVisualNudge)
+                button.setAccessibilityLabel("Beddy Butler, \(pendingVisualDescription)")
+            } else if let mutedUntil {
+                button.image = MenuBarIcon.make(state: .muted)
+                button.setAccessibilityLabel(
+                    "Beddy Butler, paused until \(LocalizedScheduleText.dayAndTime(mutedUntil))"
+                )
+            } else {
+                button.image = MenuBarIcon.make(state: .normal)
+                button.setAccessibilityLabel("Beddy Butler")
+            }
             if scheduler.visualNudgePending {
                 button.toolTip =
                     "Beddy Butler, \(pendingVisualDescription). Open the menu to acknowledge."
-            } else if let mutedUntil = settings.mutedUntil, settings.isMuted() {
+            } else if let mutedUntil {
                 button.toolTip =
                     "Beddy Butler is paused until \(LocalizedScheduleText.dayAndTime(mutedUntil))"
             } else if let nextNudge = scheduler.nextNudge {
+                let nudgeName =
+                    settings.nudgeDelivery == .visual ? "nudge" : "\(scheduler.nextPersonality.title) nudge"
                 button.toolTip =
-                    "Beddy Butler, next \(scheduler.nextPersonality.title) nudge at \(LocalizedScheduleText.dayAndTime(nextNudge))"
+                    "Beddy Butler, next \(nudgeName): \(LocalizedScheduleText.dayAndTime(nextNudge))"
             } else {
                 button.toolTip = "Beddy Butler, no nudge scheduled"
             }
         }
 
         loginItemManager.refresh()
-        launchAtLoginItem?.state = loginItemManager.isEnabled ? .on : .off
+        switch loginItemManager.state {
+        case .enabled: launchAtLoginItem?.state = .on
+        case .requiresApproval: launchAtLoginItem?.state = .mixed
+        case .disabled, .unavailable: launchAtLoginItem?.state = .off
+        }
         launchAtLoginItem?.toolTip =
             loginItemManager.state == .requiresApproval
             ? "Approval is required in System Settings"
@@ -576,16 +722,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
     }
 
     @objc private func toggleMute(_ sender: Any?) {
-        if settings.isMuted() {
-            scheduler.resumeNudges()
+        if settings.isMuted() && !scheduler.isSnoozed {
+            resumeNudges()
         } else {
-            scheduler.muteForCurrentWindow()
+            pauseTonight()
         }
+    }
+
+    @objc private func resumeFromMenu(_ sender: Any?) {
+        resumeNudges()
+    }
+
+    private func togglePopoverPause() {
+        if settings.isMuted() {
+            resumeNudges()
+        } else {
+            pauseTonight()
+        }
+    }
+
+    private func resumeNudges() {
+        scheduler.resumeNudges()
+        announce(scheduler.lastEvent)
+        refreshMenuState()
+    }
+
+    private func pauseTonight() {
+        scheduler.muteForCurrentWindow()
         announce(scheduler.lastEvent)
         refreshMenuState()
     }
 
     @objc private func toggleLaunchAtLogin(_ sender: Any?) {
+        loginItemManager.refresh()
+        // Waiting for approval: unregistering here would lose the request, so send the user to Settings.
+        if loginItemManager.state == .requiresApproval {
+            loginItemManager.openSystemSettings()
+            refreshMenuState()
+            return
+        }
         loginItemManager.setEnabled(!loginItemManager.isEnabled)
         if loginItemManager.state == .requiresApproval {
             loginItemManager.openSystemSettings()
@@ -620,7 +795,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
     }
 
     @objc private func systemWillSleep(_ notification: Notification) {
-        scheduler.timer?.invalidate()
+        scheduler.invalidateTimers()
     }
 
     @objc private func systemDidWake(_ notification: Notification) {
@@ -657,6 +832,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
                 at: directory,
                 withIntermediateDirectories: true
             )
+            // Written before the renderer files, which the capture harness waits for.
+            captureNativePreferencesWindow(to: directory.appendingPathComponent("preferences-window.png"))
             try writeSnapshot(
                 of: PreferencesView(
                     settings: settings,
@@ -674,20 +851,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
                 proposedWidth: 420,
                 to: directory.appendingPathComponent("tonight-popover.png")
             )
-            if let contentView = preferencesWindowController.window?.contentView {
-                contentView.layoutSubtreeIfNeeded()
-                if let bitmap = contentView.bitmapImageRepForCachingDisplay(in: contentView.bounds) {
-                    contentView.cacheDisplay(in: contentView.bounds, to: bitmap)
-                    if NativeSnapshotValidation.hasVisibleContent(bitmap),
-                        let data = bitmap.representation(using: .png, properties: [:])
-                    {
-                        try data.write(to: directory.appendingPathComponent("preferences-window.png"), options: .atomic)
-                    }
-                }
-            }
             print("Captured native UI to \(directory.path)")
         } catch {
             fputs("Beddy Butler UI capture failed: \(error)\n", stderr)
+        }
+    }
+
+    /// Optional: offscreen caching can come back blank, so a failure is logged rather than fatal.
+    private func captureNativePreferencesWindow(to destination: URL) {
+        guard let contentView = preferencesWindowController.window?.contentView else {
+            fputs("Beddy Butler native Preferences capture skipped: no window\n", stderr)
+            return
+        }
+        contentView.layoutSubtreeIfNeeded()
+        guard let bitmap = contentView.bitmapImageRepForCachingDisplay(in: contentView.bounds) else {
+            fputs("Beddy Butler native Preferences capture skipped: no bitmap\n", stderr)
+            return
+        }
+        contentView.cacheDisplay(in: contentView.bounds, to: bitmap)
+        guard NativeSnapshotValidation.hasVisibleContent(bitmap),
+            let data = bitmap.representation(using: .png, properties: [:])
+        else {
+            fputs("Beddy Butler native Preferences capture skipped: blank frame\n", stderr)
+            return
+        }
+        do {
+            try data.write(to: destination, options: .atomic)
+        } catch {
+            fputs("Beddy Butler native Preferences capture failed: \(error)\n", stderr)
         }
     }
 
@@ -696,7 +887,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         proposedWidth: CGFloat,
         to destination: URL
     ) throws {
-        let renderer = ImageRenderer(content: content.frame(width: proposedWidth))
+        // ImageRenderer has no host to honour .preferredColorScheme(.dark), so set the scheme directly.
+        let renderer = ImageRenderer(
+            content: content.frame(width: proposedWidth).environment(\.colorScheme, .dark)
+        )
         renderer.proposedSize = ProposedViewSize(width: proposedWidth, height: nil)
         renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
         guard let image = renderer.cgImage else {
@@ -721,7 +915,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
             preview: { [weak self] in self?.previewButler(nil) },
             acknowledge: { [weak self] in self?.acknowledgeVisualNudge(nil) },
             snooze: { [weak self] in self?.snooze(nil) },
-            togglePause: { [weak self] in self?.toggleMute(nil) },
+            togglePause: { [weak self] in self?.togglePopoverPause() },
+            pauseTonight: { [weak self] in self?.pauseTonight() },
             quit: { [weak self] in self?.quit(nil) }
         )
     }

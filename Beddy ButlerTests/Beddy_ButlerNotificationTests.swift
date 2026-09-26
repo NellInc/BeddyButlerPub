@@ -7,7 +7,6 @@ import XCTest
 final class BeddyButlerNotificationTests: XCTestCase {
     func testDeniedAuthorizationCanBecomeAllowedAtRuntime() async {
         let defaults = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: defaultsSuiteName(defaults)) }
         let settings = AppSettings(defaults: defaults)
         let center = TestLocalNotificationCenter()
         let manager = LocalNotificationManager(center: center)
@@ -26,7 +25,6 @@ final class BeddyButlerNotificationTests: XCTestCase {
 
     func testAuthorizationRefreshDisablesAlertsAfterPermissionIsRevoked() async {
         let defaults = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: defaultsSuiteName(defaults)) }
         let settings = AppSettings(defaults: defaults)
         let center = TestLocalNotificationCenter()
         let manager = LocalNotificationManager(center: center)
@@ -48,7 +46,6 @@ final class BeddyButlerNotificationTests: XCTestCase {
 
     func testOlderAuthorizationReplyCannotOverrideANewerChoice() async {
         let defaults = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: defaultsSuiteName(defaults)) }
         let settings = AppSettings(defaults: defaults)
         let center = TestLocalNotificationCenter()
         let manager = LocalNotificationManager(center: center)
@@ -66,15 +63,7 @@ final class BeddyButlerNotificationTests: XCTestCase {
     }
 
     private func makeDefaults() -> UserDefaults {
-        let name = "BeddyButler.NotificationTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
-        defaults.removePersistentDomain(forName: name)
-        defaults.set(name, forKey: "testSuiteName")
-        return defaults
-    }
-
-    private func defaultsSuiteName(_ defaults: UserDefaults) -> String {
-        defaults.string(forKey: "testSuiteName")!
+        makeIsolatedDefaults(prefix: "BeddyButler.NotificationTests")
     }
 
     private func settleMainActorTasks() async {

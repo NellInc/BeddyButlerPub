@@ -29,6 +29,21 @@ final class BeddyButlerAudioTests: XCTestCase {
         XCTAssertEqual(ButlerPersonality.zombie.sampleLabel, "Hear a Zombie Sample")
     }
 
+    @MainActor
+    func testVolumeSliderUsesASquaredAmplitudeCurve() {
+        XCTAssertEqual(AudioPlayer.amplitude(forSliderPosition: 0), 0)
+        XCTAssertEqual(AudioPlayer.amplitude(forSliderPosition: 0.5), 0.25, accuracy: 0.0001)
+        XCTAssertEqual(AudioPlayer.amplitude(forSliderPosition: 1), 1)
+        XCTAssertEqual(AudioPlayer.amplitude(forSliderPosition: 1.5), 1)
+        XCTAssertEqual(AudioPlayer.amplitude(forSliderPosition: -1), 0)
+        let fallback = AppSettings.defaultVoiceVolume
+        XCTAssertEqual(
+            AudioPlayer.amplitude(forSliderPosition: .nan),
+            Float(fallback * fallback),
+            accuracy: 0.0001
+        )
+    }
+
     func testClipSelectorUsesEveryClipBeforeRepeating() throws {
         let clips = [
             URL(fileURLWithPath: "/tmp/one.mp3"),
@@ -49,6 +64,32 @@ final class BeddyButlerAudioTests: XCTestCase {
             selected.last,
             selector.next(for: .shy, from: clips, shuffle: { $0 })
         )
+    }
+
+    func testClipSelectorNeverRepeatsAcrossACycleBoundary() throws {
+        let clips = [
+            URL(fileURLWithPath: "/tmp/one.mp3"),
+            URL(fileURLWithPath: "/tmp/two.mp3"),
+            URL(fileURLWithPath: "/tmp/three.mp3"),
+        ]
+        var selector = AudioClipSelector()
+        for expected in clips {
+            XCTAssertEqual(selector.next(for: .shy, from: clips, shuffle: { $0 }), expected)
+        }
+
+        // The reshuffled cycle starts with the clip that just played, so it must be swapped back.
+        let next = try XCTUnwrap(selector.next(for: .shy, from: clips, shuffle: { Array($0.reversed()) }))
+        XCTAssertNotEqual(next, clips[2])
+        XCTAssertEqual(next, clips[1])
+    }
+
+    func testClipSelectorHandlesEmptyAndSingleClipCatalogues() {
+        var selector = AudioClipSelector()
+        XCTAssertNil(selector.next(for: .shy, from: [], shuffle: { $0 }))
+
+        let only = URL(fileURLWithPath: "/tmp/only.mp3")
+        XCTAssertEqual(selector.next(for: .zombie, from: [only], shuffle: { $0 }), only)
+        XCTAssertEqual(selector.next(for: .zombie, from: [only], shuffle: { $0 }), only)
     }
 
     func testLibraryCategorizesClipsByPersonality() {

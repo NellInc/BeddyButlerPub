@@ -9,6 +9,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
+PAGES_WORKFLOW = ROOT / ".github" / "workflows" / "pages.yml"
 PROJECT = ROOT / "Beddy Butler.xcodeproj" / "project.pbxproj"
 
 
@@ -35,6 +36,24 @@ def multiline_run_blocks(source: str) -> list[tuple[int, list[str]]]:
     return blocks
 
 
+REQUIRED_STEPS = (
+    "fetch-depth: 0",
+    "persist-credentials: false",
+    "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES",
+    "python3 Tools/test_website_samples.py",
+    "node Tools/test_website_samples.js",
+    "node Tools/test_website_avatars.cjs",
+)
+
+
+def unpinned_actions(source: str) -> list[str]:
+    return [
+        reference
+        for reference in re.findall(r"^\s*(?:-\s+)?uses:\s*(\S+)", source, re.MULTILINE)
+        if not re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", reference)
+    ]
+
+
 def validate(workflow: str, *, version: str, build: str) -> list[str]:
     errors: list[str] = []
     blocks = multiline_run_blocks(workflow)
@@ -46,6 +65,12 @@ def validate(workflow: str, *, version: str, build: str) -> list[str]:
             errors.append(
                 f"CI run block at line {line_number} must begin with 'set -euo pipefail'"
             )
+
+    for step in REQUIRED_STEPS:
+        if step not in workflow:
+            errors.append(f"CI is missing {step!r}")
+    for reference in unpinned_actions(workflow):
+        errors.append(f"CI action {reference} is not pinned to a full commit SHA")
 
     expected_version = f"--version {version}"
     expected_build = f"--build {build}"
@@ -74,6 +99,9 @@ def main() -> int:
         return 1
 
     errors = validate(workflow, version=version, build=build)
+    pages = PAGES_WORKFLOW.read_text(encoding="utf-8")
+    for reference in unpinned_actions(pages):
+        errors.append(f"Pages action {reference} is not pinned to a full commit SHA")
 
     mutation = workflow.replace("set -euo pipefail", "set -eu", 1)
     if mutation == workflow or not validate(mutation, version=version, build=build):
@@ -82,6 +110,14 @@ def main() -> int:
     mutation = workflow.replace(f"--build {build}", "--build 1", 1)
     if mutation == workflow or not validate(mutation, version=version, build=build):
         errors.append("CI build-identity negative control did not fail")
+
+    mutation = workflow.replace("fetch-depth: 0", "fetch-depth: 1", 1)
+    if mutation == workflow or not validate(mutation, version=version, build=build):
+        errors.append("CI full-history negative control did not fail")
+
+    mutation = re.sub(r"(uses: actions/checkout)@[0-9a-f]{40}", r"\1@v7", workflow, count=1)
+    if mutation == workflow or not validate(mutation, version=version, build=build):
+        errors.append("CI action-pinning negative control did not fail")
 
     if errors:
         print("\n".join(f"ERROR: {error}" for error in errors), file=sys.stderr)

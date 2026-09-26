@@ -22,7 +22,8 @@ enum WallClockDateResolver {
     static func date(
         seconds: Int,
         on day: Date,
-        calendar: Calendar
+        calendar: Calendar,
+        matchingPolicy: Calendar.MatchingPolicy = .nextTimePreservingSmallerComponents
     ) -> Date? {
         let clamped = min(max(seconds, 0), AppSettings.secondsPerDay - 1)
         let components = DateComponents(
@@ -34,7 +35,7 @@ enum WallClockDateResolver {
         return calendar.nextDate(
             after: searchStart,
             matching: components,
-            matchingPolicy: .nextTimePreservingSmallerComponents,
+            matchingPolicy: matchingPolicy,
             repeatedTimePolicy: .first,
             direction: .forward
         )
@@ -244,23 +245,40 @@ struct ScheduleCalculator: Sendable {
                     to: startOfReferenceDay
                 ),
                 let times = schedule.times(for: anchorDay, calendar: calendar),
+                // Equal begin and bed times are not a 24-hour window; that night has no window.
+                times.bed != times.start,
                 let start = wallClockDate(seconds: times.start, on: anchorDay)
             else {
                 return nil
             }
 
-            let crossesMidnight = times.bed <= times.start
+            let crossesMidnight = times.bed < times.start
             guard
                 let endDay = crossesMidnight
                     ? calendar.date(byAdding: .day, value: 1, to: anchorDay)
                     : anchorDay,
-                let end = wallClockDate(seconds: times.bed, on: endDay),
-                end > start
+                let end = wallClockDate(seconds: times.bed, on: endDay)
             else {
                 return nil
             }
+            if end > start {
+                return BedtimeWindow(start: start, end: end)
+            }
 
-            return BedtimeWindow(start: start, end: end)
+            // A begin time inside a spring-forward gap is pushed forward by the whole gap,
+            // which can pass a bedtime just after the gap. Begin at the first valid instant.
+            guard
+                let gapStart = WallClockDateResolver.date(
+                    seconds: times.start,
+                    on: anchorDay,
+                    calendar: calendar,
+                    matchingPolicy: .nextTime
+                ),
+                end > gapStart
+            else {
+                return nil
+            }
+            return BedtimeWindow(start: gapStart, end: end)
         }
         .sorted { $0.start < $1.start }
     }
@@ -335,11 +353,27 @@ final class ButlerTimer: NSObject, ObservableObject {
     private var progression: ProgressiveState
     private var progressionWindowStart: Date?
     private var scheduledWindow: BedtimeWindow?
+    private var scheduledMutedUntil: Date?
     private(set) var timer: Timer?
+    /// Fires at the next window start, window end or pause end so clock-dependent UI refreshes.
+    private(set) var boundaryTimer: Timer?
 
     var canSnooze: Bool {
         guard settings.hasActivatedSchedule, !settings.isMuted(at: now()) else { return false }
         return activeWindow(at: now()) != nil
+    }
+
+    /// A short snooze inside tonight's window. A whole-night pause, or a snooze that
+    /// reaches bedtime, counts as paused instead.
+    var isSnoozed: Bool {
+        let currentDate = now()
+        guard settings.hasActivatedSchedule, settings.isMuted(at: currentDate), !hasFinishedTonight,
+            let mutedUntil = settings.mutedUntil,
+            let window = activeWindow(at: currentDate)
+        else {
+            return false
+        }
+        return mutedUntil < window.end
     }
 
     var hasFinishedTonight: Bool {
@@ -384,11 +418,14 @@ final class ButlerTimer: NSObject, ObservableObject {
         recalculate()
     }
 
-    func recalculate() {
-        timer?.invalidate()
-        timer = nil
-
+    /// Reschedules the next nudge. `preservingPendingNudge` keeps an already drawn nudge
+    /// when nothing that decides it has changed, so opening a window or adjusting an
+    /// unrelated setting does not push the nudge back.
+    func recalculate(preservingPendingNudge: Bool = false) {
         guard settings.hasActivatedSchedule else {
+            invalidateTimers()
+            timer = nil
+            boundaryTimer = nil
             nextNudge = nil
             scheduledWindow = nil
             lastEvent = ""
@@ -405,10 +442,20 @@ final class ButlerTimer: NSObject, ObservableObject {
         let intervalRange = ScheduleCalculator.intervalRange(
             frequencyMinutes: settings.frequencyMinutes
         )
-        let interval = intervalProvider(intervalRange)
+        followWidenedWindow(at: currentDate, calculator: calculator, schedule: schedule)
 
+        let pendingNudge =
+            preservingPendingNudge
+            ? reusablePendingNudge(
+                at: currentDate,
+                calculator: calculator,
+                schedule: schedule,
+                intervalRange: intervalRange
+            ) : nil
         let nudge: ScheduledNudge?
-        if let mutedUntil = settings.mutedUntil,
+        if let pendingNudge {
+            nudge = pendingNudge
+        } else if let mutedUntil = settings.mutedUntil,
             mutedUntil > currentDate,
             let resumeWindow = calculator.window(
                 containingOrAfter: mutedUntil,
@@ -423,15 +470,18 @@ final class ButlerTimer: NSObject, ObservableObject {
             let schedulingDate = settings.mutedUntil.flatMap { $0 > currentDate ? $0 : nil } ?? currentDate
             nudge = calculator.nextNudge(
                 after: schedulingDate,
-                interval: interval,
+                interval: intervalProvider(intervalRange),
                 schedule: schedule
             )
         }
 
         guard let nudge else {
+            timer?.invalidate()
+            timer = nil
             nextNudge = nil
             scheduledWindow = nil
             lastEvent = "No valid bedtime window is configured."
+            scheduleBoundaryRefresh(after: currentDate, calculator: calculator, schedule: schedule)
             NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
             return
         }
@@ -448,24 +498,30 @@ final class ButlerTimer: NSObject, ObservableObject {
 
         nextPersonality =
             settings.progressiveMode
-            ? progression.current.capped(at: settings.maximumPersonality) : settings.personality
+            ? progression.current.capped(at: settings.effectiveMaximumPersonality) : settings.personality
         nextNudge = nudge.fireDate
         scheduledWindow = nudge.window
+        scheduledMutedUntil = settings.mutedUntil
 
-        let nextTimer = Timer(
-            fireAt: nudge.fireDate,
-            interval: 0,
-            target: self,
-            selector: #selector(timerDidFire),
-            userInfo: nil,
-            repeats: false
-        )
-        nextTimer.tolerance = min(
-            30,
-            max(nudge.fireDate.timeIntervalSince(currentDate), 0) * 0.05
-        )
-        RunLoop.main.add(nextTimer, forMode: .common)
-        timer = nextTimer
+        if pendingNudge == nil {
+            let nextTimer = Timer(
+                fireAt: nudge.fireDate,
+                interval: 0,
+                target: self,
+                selector: #selector(timerDidFire),
+                userInfo: nil,
+                repeats: false
+            )
+            nextTimer.tolerance = min(
+                30,
+                max(nudge.fireDate.timeIntervalSince(currentDate), 0) * 0.05
+            )
+            RunLoop.main.add(nextTimer, forMode: .common)
+            // Invalidate here too, in case anything scheduled a timer while this call ran.
+            timer?.invalidate()
+            timer = nextTimer
+        }
+        scheduleBoundaryRefresh(after: currentDate, calculator: calculator, schedule: schedule)
 
         logger.debug("Scheduled next nudge for \(nudge.fireDate, privacy: .public)")
         NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
@@ -480,13 +536,24 @@ final class ButlerTimer: NSObject, ObservableObject {
             return
         }
 
+        // A stale notification's Snooze must not shorten a pause that is already running.
+        if let mutedUntil = settings.mutedUntil, settings.isMuted(at: currentDate) {
+            lastEvent =
+                isSnoozed
+                ? "Snoozed until \(LocalizedScheduleText.time(mutedUntil))."
+                : "Nudges are paused for this bedtime window."
+            NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
+            return
+        }
+
         let requestedResume = currentDate.addingTimeInterval(
             TimeInterval(min(max(minutes ?? settings.snoozeMinutes, 1), 1440) * 60))
+        audioPlayer.stop()
         if requestedResume < window.end {
             settings.mute(until: requestedResume)
             lastEvent = "Snoozed until \(LocalizedScheduleText.time(requestedResume))."
         } else {
-            settings.mute(until: window.end)
+            settings.mute(until: window.end, wholeWindow: true)
             lastEvent = "Snooze reaches bedtime, so nudges are paused for tonight."
         }
     }
@@ -506,14 +573,22 @@ final class ButlerTimer: NSObject, ObservableObject {
             return
         }
 
-        settings.mute(until: window.end)
+        settings.mute(until: window.end, wholeWindow: true)
+        audioPlayer.stop()
+        visualNotifier?.clearVisualNudges()
         lastEvent = "Nudges are paused for this bedtime window."
     }
 
     func finishTonight() {
         guard settings.hasActivatedSchedule else { return }
-        guard canSnooze, let window = activeWindow(at: now()) else { return }
+        guard !hasFinishedTonight, canSnooze || isSnoozed, let window = activeWindow(at: now()) else {
+            // The button was stale (for example, bedtime has passed). Refresh so it disappears.
+            objectWillChange.send()
+            NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
+            return
+        }
         settings.finishWindow(until: window.end)
+        audioPlayer.stop()
         visualNotifier?.clearVisualNudges()
         lastEvent = "Good night."
     }
@@ -524,8 +599,14 @@ final class ButlerTimer: NSObject, ObservableObject {
         }
     }
 
+    /// Resumes from any pause. After "I'm heading to bed" this is the same as Undo, so the
+    /// badges set aside by finishing are restored rather than discarded.
     func resumeNudges() {
-        settings.resumeNudges()
+        if hasFinishedTonight {
+            settings.undoFinishedWindow(at: now())
+        } else {
+            settings.resumeNudges()
+        }
         lastEvent = "Nudges resumed."
     }
 
@@ -538,30 +619,59 @@ final class ButlerTimer: NSObject, ObservableObject {
         if settings.nudgeDelivery.includesSound {
             do {
                 let clip = try audioPlayer.play(personality, volume: settings.voiceVolume)
-                messages.append("Previewed \(clip.deletingPathExtension().lastPathComponent).")
+                messages.append("Previewed \(personality.indefiniteArticle) \(personality.title) reminder.")
+                logger.debug("Previewed \(clip.lastPathComponent, privacy: .public)")
             } catch {
                 messages.append(error.localizedDescription)
                 logger.error("Preview failed: \(error.localizedDescription, privacy: .public)")
             }
         }
-        if settings.nudgeDelivery.includesVisual {
-            recordVisualNudge(personality: settings.nudgeDelivery.includesSound ? personality : nil)
+        if settings.nudgeDelivery.includesVisual, !hasFinishedTonight {
+            recordVisualNudge(
+                personality: settings.nudgeDelivery.includesSound ? personality : nil,
+                preview: true
+            )
             messages.append("Visual badge preview is waiting in the menu bar.")
         }
-        lastEvent = messages.joined(separator: " ")
+        if !messages.isEmpty {
+            lastEvent = messages.joined(separator: " ")
+        }
         NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
     }
 
     func acknowledgeVisualNudge() {
         guard visualNudgePending else { return }
         settings.clearVisualNudges()
+        audioPlayer.stop()
         visualNotifier?.clearVisualNudges()
         lastEvent = "Visual nudge acknowledged."
         NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
     }
 
+    /// Invalidates both timers, for example before the Mac sleeps. Wake recalculates.
+    func invalidateTimers() {
+        timer?.invalidate()
+        boundaryTimer?.invalidate()
+    }
+
+    /// Republishes clock-dependent state (window start or end, a pause ending) without
+    /// drawing a new nudge interval.
+    func refreshTimeDependentState() {
+        let currentDate = now()
+        settings.clearExpiredMute(at: currentDate)
+        if settings.hasActivatedSchedule {
+            scheduleBoundaryRefresh(
+                after: currentDate,
+                calculator: ScheduleCalculator(calendar: .autoupdatingCurrent),
+                schedule: weeklySchedule
+            )
+        }
+        objectWillChange.send()
+        NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
+    }
+
     @objc private func settingsDidChange() {
-        recalculate()
+        recalculate(preservingPendingNudge: true)
     }
 
     @objc private func timerDidFire() {
@@ -592,16 +702,14 @@ final class ButlerTimer: NSObject, ObservableObject {
         guard settings.hasActivatedSchedule else { return }
         let personality =
             settings.progressiveMode
-            ? progression.current.capped(at: settings.maximumPersonality) : settings.personality
+            ? progression.current.capped(at: settings.effectiveMaximumPersonality) : settings.personality
         var messages: [String] = []
 
         if settings.nudgeDelivery.includesSound {
             do {
                 let clip = try audioPlayer.play(personality, volume: settings.voiceVolume)
-                messages.append(
-                    "\(personality.title) played \(clip.deletingPathExtension().lastPathComponent)."
-                )
-                logger.info("Played a \(personality.title, privacy: .public) nudge")
+                messages.append("\(personality.title) played at \(LocalizedScheduleText.time(now())).")
+                logger.info("Played \(clip.lastPathComponent, privacy: .public)")
             } catch {
                 messages.append(error.localizedDescription)
                 logger.error("Nudge playback failed: \(error.localizedDescription, privacy: .public)")
@@ -654,8 +762,76 @@ final class ButlerTimer: NSObject, ObservableObject {
         )
     }
 
-    private func recordVisualNudge(personality: ButlerPersonality?) {
-        settings.recordVisualNudge(at: now())
+    private func reusablePendingNudge(
+        at currentDate: Date,
+        calculator: ScheduleCalculator,
+        schedule: WeeklyBedtimeSchedule,
+        intervalRange: ClosedRange<TimeInterval>
+    ) -> ScheduledNudge? {
+        guard timer?.isValid == true,
+            let pendingDate = nextNudge,
+            let pendingWindow = scheduledWindow,
+            pendingDate > currentDate,
+            // A shorter frequency or a backward clock change draws again.
+            pendingDate <= max(currentDate, pendingWindow.start).addingTimeInterval(intervalRange.upperBound),
+            settings.mutedUntil == nil,
+            scheduledMutedUntil == nil,
+            calculator.window(containingOrAfter: currentDate, schedule: schedule) == pendingWindow
+        else {
+            return nil
+        }
+        return ScheduledNudge(fireDate: pendingDate, window: pendingWindow)
+    }
+
+    /// Keeps a whole-window pause or finish lasting until bedtime after bedtime moves later.
+    private func followWidenedWindow(
+        at currentDate: Date,
+        calculator: ScheduleCalculator,
+        schedule: WeeklyBedtimeSchedule
+    ) {
+        guard settings.mutesWholeWindow,
+            let mutedUntil = settings.mutedUntil,
+            mutedUntil > currentDate,
+            let window = calculator.window(containingOrAfter: currentDate, schedule: schedule),
+            window.start < mutedUntil,
+            mutedUntil < window.end
+        else {
+            return
+        }
+        settings.extendWholeWindowMute(until: window.end)
+    }
+
+    private func scheduleBoundaryRefresh(
+        after currentDate: Date,
+        calculator: ScheduleCalculator,
+        schedule: WeeklyBedtimeSchedule
+    ) {
+        boundaryTimer?.invalidate()
+        boundaryTimer = nil
+        var boundaries: [Date] = []
+        if let window = calculator.window(containingOrAfter: currentDate, schedule: schedule) {
+            boundaries.append(window.contains(currentDate) ? window.end : window.start)
+        }
+        if let mutedUntil = settings.mutedUntil, mutedUntil > currentDate {
+            boundaries.append(mutedUntil)
+        }
+        guard let fireDate = boundaries.min() else { return }
+        let nextTimer = Timer(fire: fireDate, interval: 0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.refreshTimeDependentState()
+            }
+        }
+        nextTimer.tolerance = 1
+        RunLoop.main.add(nextTimer, forMode: .common)
+        boundaryTimer = nextTimer
+    }
+
+    private func recordVisualNudge(personality: ButlerPersonality?, preview: Bool = false) {
+        if preview {
+            settings.recordVisualNudgePreview(at: now())
+        } else {
+            settings.recordVisualNudge(at: now())
+        }
         if settings.notificationAlertsEnabled {
             visualNotifier?.deliverVisualNudge(
                 count: settings.pendingVisualNudgeCount,

@@ -1,4 +1,5 @@
 import SpriteKit
+import UniformTypeIdentifiers
 import XCTest
 
 @testable import Beddy_Butler
@@ -36,7 +37,7 @@ final class Beddy_ButlerRigTests: XCTestCase {
         }
         window.makeKeyAndOrderFront(nil)
         defer {
-            views.forEach { $0.stopRendering() }
+            for view in views { view.stopRendering() }
             window.close()
         }
         try await Task.sleep(nanoseconds: 1_000_000_000)
@@ -56,7 +57,7 @@ final class Beddy_ButlerRigTests: XCTestCase {
             }
         }
         // Measure separately: texture readback and PNG encoding deliberately stall the render thread.
-        probes.forEach { $0.timestamps = [] }
+        for probe in probes { probe.timestamps = [] }
         try await Task.sleep(nanoseconds: 12_000_000_000)
         var results: [[String: Any]] = []
         for (i, probe) in probes.enumerated() {
@@ -73,7 +74,7 @@ final class Beddy_ButlerRigTests: XCTestCase {
             .write(to: output.appendingPathComponent("native-timing.json"))
         var singleResults: [[String: Any]] = []
         for (i, view) in views.enumerated() {
-            views.forEach { $0.stopRendering() }
+            for other in views { other.stopRendering() }
             view.configure(
                 personality: ButlerPersonality.allCases[i], motionEnabled: true,
                 isVisible: true, contentMode: .fit, intensity: 1)
@@ -99,11 +100,20 @@ final class Beddy_ButlerRigTests: XCTestCase {
     func testArticulatedAssetsLoopAndRespectReducedMotion() throws {
         for personality in ButlerPersonality.allCases {
             let motion = try XCTUnwrap(ButlerArticulatedMotion.load(personality))
-            let start = motion.geometry(at: 0, intensity: 1)
-            let end = motion.geometry(at: motion.duration, intensity: 1)
+            // geometry(at:) interpolates the last frame back into frame 0, so the wrap step
+            // must be no larger than an ordinary step or the loop visibly jumps.
+            func frameDelta(_ a: Int, _ b: Int) -> Float {
+                (0..<motion.vertexCount).map { i in
+                    simd_length(
+                        motion.positions[a * motion.vertexCount + i] - motion.positions[b * motion.vertexCount + i])
+                }.max() ?? 0
+            }
+            let largestStep = (0..<(motion.frames - 1)).map { frameDelta($0, $0 + 1) }.max() ?? 0
+            XCTAssertGreaterThan(largestStep, 0, "\(personality.title) motion must move")
+            XCTAssertLessThanOrEqual(
+                frameDelta(motion.frames - 1, 0), largestStep * 1.5, "\(personality.title) loop seam")
             let rest = motion.geometry(at: 2, intensity: 0)
-            for i in 0..<start.vertexCount {
-                XCTAssertEqual(start.destPosition(at: i), end.destPosition(at: i))
+            for i in 0..<rest.vertexCount {
                 XCTAssertEqual(rest.destPosition(at: i), rest.sourcePosition(at: i))
             }
             let scene = ButlerMotionScene()
@@ -142,7 +152,10 @@ final class Beddy_ButlerRigTests: XCTestCase {
                     (0..<(bitmap.bytesPerRow * bitmap.pixelsHigh)).contains { pixels[$0] != 0 }, "Blank native render")
                 let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
                 renderedFrames.append(png)
-                try png.write(to: URL(fileURLWithPath: "/tmp/beddy-native-\(personality.rawValue)-\(index).png"))
+                let attachment = XCTAttachment(data: png, uniformTypeIdentifier: UTType.png.identifier)
+                attachment.name = "beddy-native-\(personality.rawValue)-\(index).png"
+                attachment.lifetime = .deleteOnSuccess
+                add(attachment)
             }
             XCTAssertNotEqual(renderedFrames[0], renderedFrames[1], "Native poses must visibly change")
             view.presentScene(nil)
@@ -167,12 +180,13 @@ final class Beddy_ButlerRigTests: XCTestCase {
                 XCTAssertTrue((0.94...1.06).contains(pose.scale))
             }
 
+            // pose(phase:) wraps phase 1 back to 0, so compare against the end of the cycle.
             let start = ButlerRigidMotion.pose(for: personality, phase: 0)
-            let end = ButlerRigidMotion.pose(for: personality, phase: 1)
-            XCTAssertEqual(start.translation.x, end.translation.x, accuracy: 0.000_01)
-            XCTAssertEqual(start.translation.y, end.translation.y, accuracy: 0.000_01)
-            XCTAssertEqual(start.rotation, end.rotation, accuracy: 0.000_01)
-            XCTAssertEqual(start.scale, end.scale, accuracy: 0.000_01)
+            let end = ButlerRigidMotion.pose(for: personality, phase: 0.9999)
+            XCTAssertEqual(start.translation.x, end.translation.x, accuracy: 0.001)
+            XCTAssertEqual(start.translation.y, end.translation.y, accuracy: 0.001)
+            XCTAssertEqual(start.rotation, end.rotation, accuracy: 0.001)
+            XCTAssertEqual(start.scale, end.scale, accuracy: 0.001)
         }
     }
 
@@ -250,5 +264,101 @@ final class Beddy_ButlerRigTests: XCTestCase {
                 "\(personality.title) should be prefiltered before SpriteKit minifies it"
             )
         }
+    }
+
+    @MainActor
+    func testVisibilityPollingStopsWhenWindowClosesAndResumesOnReopen() async throws {
+        let (window, view) = makeRigWindow(motionEnabled: true)
+        defer {
+            view.stopRendering()
+            window.close()
+        }
+        try await waitForOnScreen(window)
+        let pollingStarted = await waitUntil { view.isVisibilityPollingActive }
+        XCTAssertTrue(pollingStarted)
+        XCTAssertFalse(view.isPaused)
+
+        window.close()
+        XCTAssertFalse(view.isVisibilityPollingActive, "Closing must stop polling immediately")
+        XCTAssertTrue(view.isPaused)
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        XCTAssertFalse(view.isVisibilityPollingActive, "Polling must stay stopped while closed")
+        XCTAssertTrue(view.isPaused, "Rendering must stay paused while closed")
+
+        window.orderFrontRegardless()
+        let pollingResumed = await waitUntil { view.isVisibilityPollingActive }
+        XCTAssertTrue(pollingResumed, "Reopening must resume polling")
+        let renderingResumed = await waitUntil { !view.isPaused }
+        XCTAssertTrue(renderingResumed, "Reopening must resume the animated preview")
+    }
+
+    @MainActor
+    func testReducedMotionPreviewRendersOnlyWhenItsInputsChange() async throws {
+        let (window, view) = makeRigWindow(motionEnabled: false)
+        defer {
+            view.stopRendering()
+            window.close()
+        }
+        try await waitForOnScreen(window)
+        let pollingStarted = await waitUntil { view.isVisibilityPollingActive }
+        XCTAssertTrue(pollingStarted)
+        try await Task.sleep(nanoseconds: 600_000_000)
+        let probe = LiveFrameProbe()
+        try XCTUnwrap(view.scene).delegate = probe
+
+        try await Task.sleep(nanoseconds: 1_600_000_000)
+        XCTAssertLessThanOrEqual(probe.timestamps.count, 1, "An unchanged static preview must stay paused")
+        XCTAssertTrue(view.isPaused)
+
+        probe.timestamps = []
+        view.configure(personality: .shy, motionEnabled: false, isVisible: true, contentMode: .fit, intensity: 1)
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(probe.timestamps.count, 0, "Reapplying the same inputs must not redraw")
+
+        view.setFrameSize(NSSize(width: 200, height: 260))
+        view.needsLayout = true
+        view.layoutSubtreeIfNeeded()
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertGreaterThan(probe.timestamps.count, 0, "Resizing must redraw the static preview")
+        XCTAssertTrue(view.isPaused)
+
+        probe.timestamps = []
+        view.configure(
+            personality: .zombie, motionEnabled: false, isVisible: true, contentMode: .fit, intensity: 1)
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertGreaterThan(probe.timestamps.count, 0, "Changing personality must redraw the static preview")
+        XCTAssertTrue(view.isPaused)
+    }
+
+    @MainActor
+    private func makeRigWindow(motionEnabled: Bool) -> (NSWindow, ButlerMotionSKView) {
+        let window = NSWindow(
+            contentRect: NSRect(x: 200, y: 200, width: 320, height: 420),
+            styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.level = .floating
+        let view = ButlerMotionSKView(frame: NSRect(x: 0, y: 0, width: 240, height: 320))
+        window.contentView!.addSubview(view)
+        view.configure(
+            personality: .shy, motionEnabled: motionEnabled, isVisible: true, contentMode: .fit, intensity: 1)
+        window.orderFrontRegardless()
+        return (window, view)
+    }
+
+    @MainActor
+    private func waitForOnScreen(_ window: NSWindow) async throws {
+        guard await waitUntil({ window.occlusionState.contains(.visible) }) else {
+            throw XCTSkip("Requires a visible window on a live display")
+        }
+    }
+
+    @MainActor
+    private func waitUntil(timeout: TimeInterval = 3, _ condition: () -> Bool) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() {
+            guard Date() < deadline else { return false }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return true
     }
 }

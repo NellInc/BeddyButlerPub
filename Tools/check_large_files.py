@@ -83,6 +83,22 @@ def staged_tree_large_files() -> list[str]:
 
 
 def recent_history_large_files() -> list[str]:
+    shallow = subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if shallow.returncode != 0:
+        return [f"git history check failed: {shallow.stderr.strip()}"]
+    if shallow.stdout.strip() == "true":
+        return [
+            "git history check needs full history, but this clone is shallow; "
+            "fetch it with fetch-depth: 0 or git fetch --unshallow"
+        ]
+
     result = subprocess.run(
         ["git", "rev-list", "--objects", "--max-count=200", "HEAD"],
         cwd=ROOT,

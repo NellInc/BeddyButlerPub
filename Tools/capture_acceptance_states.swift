@@ -33,26 +33,46 @@ guard FileManager.default.isExecutableFile(atPath: executable.path) else {
     exit(66)
 }
 
-let now = Date()
+// Whole seconds, so a bedtime seeded from the wall clock ends exactly at `windowEnd`.
+let now = Date(timeIntervalSinceReferenceDate: Date().timeIntervalSinceReferenceDate.rounded(.down))
 let calendar = Calendar.autoupdatingCurrent
 let components = calendar.dateComponents([.hour, .minute, .second], from: now)
 let wallSeconds = (components.hour ?? 0) * 3600 + (components.minute ?? 0) * 60 + (components.second ?? 0)
+// States that need a live bedtime window use one that began 5 minutes ago and ends in an hour.
+let windowStartValue = (wallSeconds + 86400 - 300) % 86400
+let windowBedValue = (wallSeconds + 3600) % 86400
+let windowEnd = now.addingTimeInterval(3600)
+// The "paused" state keeps the default 21:30 to 23:00 window and pauses the containing or next one.
+let defaultBedtime = DateComponents(hour: 23, minute: 0, second: 0)
+guard
+    let nextDefaultWindowEnd = calendar.nextDate(
+        after: now,
+        matching: defaultBedtime,
+        matchingPolicy: .nextTime
+    )
+else {
+    fputs("Could not compute the next default bedtime.\n", stderr)
+    exit(70)
+}
 let states = [
     CaptureState(
         name: "finished-tonight",
         values: [
             "onboardingVersion": 1,
+            "startTimeValue": windowStartValue,
+            "bedTimeValue": windowBedValue,
             "nudgeDelivery": "both",
-            "mutedUntil": now.addingTimeInterval(3600),
-            "finishedWindowEnd": now.addingTimeInterval(3600),
+            "isMuted": true,
+            "mutedUntil": windowEnd,
+            "finishedWindowEnd": windowEnd,
         ]
     ),
     CaptureState(
         name: "active-evening",
         values: [
             "onboardingVersion": 1,
-            "startTimeValue": (wallSeconds + 86400 - 300) % 86400,
-            "bedTimeValue": (wallSeconds + 3600) % 86400,
+            "startTimeValue": windowStartValue,
+            "bedTimeValue": windowBedValue,
             "nudgeDelivery": "both",
             "progressive": true,
             "maximumPersonality": "insistent",
@@ -62,11 +82,31 @@ let states = [
     CaptureState(
         name: "paused-pending",
         values: [
+            // A snooze that reaches bedtime pauses the rest of the window and keeps waiting badges.
             "onboardingVersion": 1,
+            "startTimeValue": windowStartValue,
+            "bedTimeValue": windowBedValue,
             "nudgeDelivery": "visual",
-            "mutedUntil": now.addingTimeInterval(3600),
+            "isMuted": true,
+            "mutedUntil": windowEnd,
+            "mutedWholeWindow": true,
             "pendingVisualNudgeCount": 2,
-            "lastVisualNudgeAt": now,
+            "lastVisualNudgeAt": now.addingTimeInterval(-60),
+        ]
+    ),
+    CaptureState(
+        name: "snoozed-pending",
+        values: [
+            // A 20-minute snooze inside the window, with waiting badges.
+            "onboardingVersion": 1,
+            "startTimeValue": windowStartValue,
+            "bedTimeValue": windowBedValue,
+            "nudgeDelivery": "both",
+            "snoozeMinutes": 20,
+            "isMuted": true,
+            "mutedUntil": now.addingTimeInterval(20 * 60),
+            "pendingVisualNudgeCount": 1,
+            "lastVisualNudgeAt": now.addingTimeInterval(-60),
         ]
     ),
     CaptureState(
@@ -104,9 +144,12 @@ let states = [
         name: "paused",
         values: [
             "onboardingVersion": 1,
+            "startTimeValue": 21 * 3600 + 30 * 60,
+            "bedTimeValue": 23 * 3600,
             "nudgeDelivery": "sound",
             "isMuted": true,
-            "mutedUntil": now.addingTimeInterval(2 * 60 * 60),
+            "mutedUntil": nextDefaultWindowEnd,
+            "mutedWholeWindow": true,
         ]
     ),
     CaptureState(
@@ -178,7 +221,9 @@ func waitForCapture(at directory: URL, process: Process) throws -> [URL] {
     let deadline = Date().addingTimeInterval(30)
     while Date() < deadline, process.isRunning {
         if expected.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) }) {
-            return expected
+            // The app writes the optional native-window image before the two required renders.
+            let nativeWindow = directory.appendingPathComponent("preferences-window.png")
+            return FileManager.default.fileExists(atPath: nativeWindow.path) ? [nativeWindow] + expected : expected
         }
         Thread.sleep(forTimeInterval: 0.2)
     }
@@ -191,6 +236,26 @@ func waitForCapture(at directory: URL, process: Process) throws -> [URL] {
         message:
             "Capture did not complete: \(missing.map(\.lastPathComponent).joined(separator: ", ")); \(processState)"
     )
+}
+
+/// A sandboxed build reads its container's preferences, so `defaults import` seeding would be ignored.
+func isSandboxed(_ executable: URL) throws -> Bool {
+    let process = Process()
+    let output = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+    process.arguments = ["-d", "--entitlements", "-", "--xml", executable.path]
+    process.standardOutput = output
+    process.standardError = FileHandle.nullDevice
+    try process.run()
+    let data = output.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    // An unsigned executable, or one signed without entitlements, is not sandboxed.
+    guard process.terminationStatus == 0, !data.isEmpty,
+        let entitlements = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+    else {
+        return false
+    }
+    return entitlements["com.apple.security.app-sandbox"] as? Bool == true
 }
 
 func runningCandidateProcessIDs(for executable: URL) -> [pid_t] {
@@ -282,6 +347,13 @@ func clearDefaultsSuite(named suiteName: String) throws {
 }
 
 do {
+    if try isSandboxed(executable) {
+        fputs(
+            "The candidate is sandboxed, so it would ignore the seeded defaults. Capture an unsigned build (CODE_SIGNING_ALLOWED=NO) instead.\n",
+            stderr
+        )
+        exit(78)
+    }
     let existingProcessIDs = runningCandidateProcessIDs(for: executable)
     guard existingProcessIDs.isEmpty else {
         throw CaptureError(
@@ -428,8 +500,9 @@ do {
         to: outputDirectory.appendingPathComponent("manifest.json"),
         options: .atomic
     )
+    let imageCount = captureRecords.reduce(0) { $0 + (($1["images"] as? [[String: Any]])?.count ?? 0) }
     print(
-        "SwiftUI state captures completed (native controls require separate window screenshots): \(states.count) states, \(states.count * 2) images"
+        "SwiftUI state captures completed (native controls require separate window screenshots): \(states.count) states, \(imageCount) images"
     )
 } catch {
     fputs("Acceptance-state capture failed: \(error.localizedDescription)\n", stderr)

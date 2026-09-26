@@ -92,11 +92,13 @@ enum UserDefaultKeys: String, CaseIterable {
     case finishedWindowEnd
     case finishedBadgeCount
     case finishedBadgeDate
+    case mutedWholeWindow
 }
 
 extension Notification.Name {
     static let beddySettingsDidChange = Notification.Name("BeddyButler.settingsDidChange")
     static let beddyScheduleDidChange = Notification.Name("BeddyButler.scheduleDidChange")
+    static let beddyWelcomeGuideRequested = Notification.Name("BeddyButler.welcomeGuideRequested")
 }
 
 /// A user-selected calendar day whose identity survives time-zone changes.
@@ -173,6 +175,8 @@ final class AppSettings: ObservableObject {
     @Published private(set) var progressiveMode: Bool
     @Published private(set) var mutedUntil: Date?
     @Published private(set) var finishedWindowEnd: Date?
+    /// True when `mutedUntil` marks the end of a whole bedtime window rather than a short snooze.
+    private(set) var mutedWholeWindow: Bool
     private var finishedBadgeCount: Int
     private var finishedBadgeDate: Date?
     @Published private(set) var voiceVolume: Double
@@ -234,6 +238,7 @@ final class AppSettings: ObservableObject {
         progressiveMode = defaults.object(forKey: UserDefaultKeys.progressive.rawValue) as? Bool ?? false
         mutedUntil = defaults.object(forKey: UserDefaultKeys.mutedUntil.rawValue) as? Date
         finishedWindowEnd = defaults.object(forKey: UserDefaultKeys.finishedWindowEnd.rawValue) as? Date
+        mutedWholeWindow = defaults.bool(forKey: UserDefaultKeys.mutedWholeWindow.rawValue)
         finishedBadgeCount = Self.clampVisualNudgeCount(
             defaults.integer(forKey: UserDefaultKeys.finishedBadgeCount.rawValue))
         finishedBadgeDate = defaults.object(forKey: UserDefaultKeys.finishedBadgeDate.rawValue) as? Date
@@ -315,16 +320,35 @@ final class AppSettings: ObservableObject {
             }
         }
 
-        // Replaying the welcome guide must not turn off an established routine.
+        // Neither replaying the welcome guide nor updating from a release without the Start
+        // step (2.0.2 and earlier) may turn off an established routine.
         let alreadyCompleted = hasCompletedOnboarding
         hasActivatedSchedule =
             (defaults.object(forKey: UserDefaultKeys.hasActivatedSchedule.rawValue) as? Bool)
-            ?? alreadyCompleted
+            ?? (alreadyCompleted || hadExistingConfiguration)
         defaults.set(hasActivatedSchedule, forKey: UserDefaultKeys.hasActivatedSchedule.rawValue)
         persistAll()
     }
 
     var weeklySchedule: WeeklyBedtimeSchedule {
+        weeklySchedule(
+            oneNightOverride: tonightOverrideDate.map {
+                OneNightScheduleOverride(
+                    anchorDate: $0,
+                    startSeconds: tonightOverrideStartSeconds,
+                    bedSeconds: tonightOverrideBedSeconds
+                )
+            }
+        )
+    }
+
+    /// The progressive ceiling, never softer than the selected personality.
+    var effectiveMaximumPersonality: ButlerPersonality {
+        // `capped(at:)` returns the softer of the two, so this returns the firmer.
+        maximumPersonality.capped(at: personality) == maximumPersonality ? personality : maximumPersonality
+    }
+
+    private func weeklySchedule(oneNightOverride: OneNightScheduleOverride?) -> WeeklyBedtimeSchedule {
         WeeklyBedtimeSchedule(
             startSeconds: startSeconds,
             bedSeconds: bedSeconds,
@@ -337,13 +361,7 @@ final class AppSettings: ObservableObject {
             rotationAnchorDate: rotationAnchorDate,
             rotationPrimaryDays: rotationPrimaryDays,
             rotationAlternateDays: rotationAlternateDays,
-            oneNightOverride: tonightOverrideDate.map {
-                OneNightScheduleOverride(
-                    anchorDate: $0,
-                    startSeconds: tonightOverrideStartSeconds,
-                    bedSeconds: tonightOverrideBedSeconds
-                )
-            }
+            oneNightOverride: oneNightOverride
         )
     }
 
@@ -518,14 +536,28 @@ final class AppSettings: ObservableObject {
         announceChange()
     }
 
+    /// Starts a one-night adjustment for the night in progress at `date`.
+    ///
+    /// Inside a window that began the previous evening, the adjustment belongs to that
+    /// night. It starts from the times that night would otherwise use, not the primary times.
     func enableTonightOverride(
         on date: Date = Date(),
         calendar: Calendar = .autoupdatingCurrent
     ) {
-        let calendarDate = LocalCalendarDate(date: date, calendar: calendar)
+        let base = weeklySchedule(oneNightOverride: nil)
+        let anchorDay: Date
+        if let window = ScheduleCalculator(calendar: calendar).window(containingOrAfter: date, schedule: base),
+            window.contains(date)
+        {
+            anchorDay = calendar.startOfDay(for: window.start)
+        } else {
+            anchorDay = calendar.startOfDay(for: date)
+        }
+        let seed = base.times(for: anchorDay, calendar: calendar) ?? (startSeconds, bedSeconds)
+        let calendarDate = LocalCalendarDate(date: anchorDay, calendar: calendar)
         tonightOverrideCalendarDate = calendarDate
-        tonightOverrideStartSeconds = startSeconds
-        tonightOverrideBedSeconds = bedSeconds
+        tonightOverrideStartSeconds = seed.start
+        tonightOverrideBedSeconds = seed.bed
         defaults.set(calendarDate.storedValue, forKey: UserDefaultKeys.tonightOverrideDate.rawValue)
         defaults.set(
             Double(tonightOverrideStartSeconds),
@@ -540,9 +572,14 @@ final class AppSettings: ObservableObject {
 
     func clearTonightOverride() {
         guard tonightOverrideCalendarDate != nil else { return }
+        clearTonightOverrideSilently()
+        announceChange()
+    }
+
+    /// Clears without announcing, so the scheduler can call it mid-recalculation.
+    private func clearTonightOverrideSilently() {
         tonightOverrideCalendarDate = nil
         defaults.removeObject(forKey: UserDefaultKeys.tonightOverrideDate.rawValue)
-        announceChange()
     }
 
     func updateTonightOverrideStartSeconds(_ value: Int) {
@@ -561,38 +598,78 @@ final class AppSettings: ObservableObject {
         announceChange()
     }
 
+    /// Keeps the adjustment until both its bedtime and its calendar day have passed, so an
+    /// adjustment made after tonight's bedtime is not removed before it can be edited.
     func clearExpiredTonightOverride(at date: Date = Date(), calendar: Calendar = .autoupdatingCurrent) {
-        guard tonightOverrideCalendarDate != nil,
-            !tonightOverrideIsActive(at: date, calendar: calendar)
+        guard let expiry = tonightOverrideExpiry(calendar: calendar), date >= expiry else { return }
+        clearTonightOverrideSilently()
+    }
+
+    /// The latest of the adjustment's bedtime, the regular bedtime it replaces, and the end of its
+    /// calendar day. An adjustment made after midnight belongs to the previous night, and moving its
+    /// bedtime before now must not bring back the regular window it replaced.
+    private func tonightOverrideExpiry(calendar: Calendar) -> Date? {
+        guard let anchor = tonightOverrideCalendarDate?.date(calendar: calendar),
+            let nextDay = calendar.date(byAdding: .day, value: 1, to: anchor)
         else {
-            return
+            return nil
         }
-        clearTonightOverride()
+        var expiry = max(tonightOverrideEnd(calendar: calendar) ?? anchor, calendar.startOfDay(for: nextDay))
+        if let regular = weeklySchedule(oneNightOverride: nil).times(for: anchor, calendar: calendar),
+            regular.bed != regular.start,
+            let regularEnd = WallClockDateResolver.date(
+                seconds: regular.bed,
+                on: regular.bed < regular.start ? nextDay : anchor,
+                calendar: calendar
+            )
+        {
+            expiry = max(expiry, regularEnd)
+        }
+        return expiry
     }
 
     func tonightOverrideIsActive(
         at date: Date = Date(),
         calendar: Calendar = .autoupdatingCurrent
     ) -> Bool {
-        guard let tonightOverrideDate = tonightOverrideCalendarDate?.date(calendar: calendar) else {
-            return false
-        }
-        let crossesMidnight = tonightOverrideBedSeconds <= tonightOverrideStartSeconds
-        let endAnchor =
-            crossesMidnight
-            ? calendar.date(byAdding: .day, value: 1, to: tonightOverrideDate)
-            : tonightOverrideDate
-        guard let endAnchor else { return false }
-        guard
-            let end = WallClockDateResolver.date(
-                seconds: tonightOverrideBedSeconds,
-                on: endAnchor,
-                calendar: calendar
-            )
+        guard let tonightOverrideDate = tonightOverrideCalendarDate?.date(calendar: calendar),
+            let end = tonightOverrideEnd(calendar: calendar)
         else {
             return false
         }
         return date >= tonightOverrideDate && date < end
+    }
+
+    /// Whether the adjustment belongs to today or to a night still in progress.
+    func tonightOverridePending(
+        at date: Date = Date(),
+        calendar: Calendar = .autoupdatingCurrent
+    ) -> Bool {
+        guard let expiry = tonightOverrideExpiry(calendar: calendar) else { return false }
+        return date < expiry
+    }
+
+    /// The adjustment's bedtime, or nil when equal times make it an invalid window.
+    private func tonightOverrideEnd(calendar: Calendar) -> Date? {
+        guard let tonightOverrideDate = tonightOverrideCalendarDate?.date(calendar: calendar),
+            tonightOverrideBedSeconds != tonightOverrideStartSeconds
+        else {
+            return nil
+        }
+        let crossesMidnight = tonightOverrideBedSeconds < tonightOverrideStartSeconds
+        guard
+            let endAnchor =
+                crossesMidnight
+                ? calendar.date(byAdding: .day, value: 1, to: tonightOverrideDate)
+                : tonightOverrideDate
+        else {
+            return nil
+        }
+        return WallClockDateResolver.date(
+            seconds: tonightOverrideBedSeconds,
+            on: endAnchor,
+            calendar: calendar
+        )
     }
 
     func updateNotificationAlertsEnabled(_ value: Bool) {
@@ -604,6 +681,16 @@ final class AppSettings: ObservableObject {
 
     func recordVisualNudge(at date: Date = Date()) {
         pendingVisualNudgeCount = Self.clampVisualNudgeCount(pendingVisualNudgeCount + 1)
+        storeVisualNudge(at: date)
+    }
+
+    /// A preview shows the badge without adding to the count of real nudges.
+    func recordVisualNudgePreview(at date: Date = Date()) {
+        pendingVisualNudgeCount = max(pendingVisualNudgeCount, 1)
+        storeVisualNudge(at: date)
+    }
+
+    private func storeVisualNudge(at date: Date) {
         lastVisualNudgeAt = date
         defaults.set(
             pendingVisualNudgeCount,
@@ -633,9 +720,11 @@ final class AppSettings: ObservableObject {
     }
 
     func replayOnboarding() {
+        // Posted on every request so Preferences can scroll back to a Welcome card that is already shown.
+        NotificationCenter.default.post(name: .beddyWelcomeGuideRequested, object: self)
         guard hasCompletedOnboarding else { return }
+        // Session only: persisting the replay would reopen Preferences at every launch until Start is pressed.
         hasCompletedOnboarding = false
-        defaults.set(0, forKey: UserDefaultKeys.onboardingVersion.rawValue)
         announceChange()
     }
 
@@ -648,6 +737,7 @@ final class AppSettings: ObservableObject {
         personality = .shy
         progressiveMode = false
         mutedUntil = nil
+        mutedWholeWindow = false
         clearFinishedWindow()
         voiceVolume = Self.defaultVoiceVolume
         nudgeDelivery = .sound
@@ -682,6 +772,7 @@ final class AppSettings: ObservableObject {
         pendingVisualNudgeCount = 0
         lastVisualNudgeAt = nil
         mutedUntil = date
+        mutedWholeWindow = false
         defaults.set(date, forKey: UserDefaultKeys.mutedUntil.rawValue)
         defaults.set(true, forKey: UserDefaultKeys.isMuted.rawValue)
         persistAll()
@@ -707,20 +798,42 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    func mute(until date: Date) {
+    /// Mutes until `date`. `wholeWindow` marks a pause that lasts until bedtime, which then
+    /// follows the bedtime if the window is later widened.
+    func mute(until date: Date, wholeWindow: Bool = false) {
         clearFinishedWindow()
         mutedUntil = date
+        mutedWholeWindow = wholeWindow
         defaults.set(date, forKey: UserDefaultKeys.mutedUntil.rawValue)
         defaults.set(true, forKey: UserDefaultKeys.isMuted.rawValue)
+        defaults.set(wholeWindow, forKey: UserDefaultKeys.mutedWholeWindow.rawValue)
         announceChange()
+    }
+
+    /// Whether the current mute is a whole-window pause or an "I'm heading to bed" finish.
+    var mutesWholeWindow: Bool {
+        guard let mutedUntil else { return false }
+        return mutedWholeWindow || finishedWindowEnd == mutedUntil
+    }
+
+    /// Moves a whole-window mute to a later bedtime. Silent, for use mid-recalculation.
+    func extendWholeWindowMute(until date: Date) {
+        guard mutesWholeWindow, let mutedUntil, date > mutedUntil else { return }
+        if finishedWindowEnd == mutedUntil {
+            finishedWindowEnd = date
+        }
+        self.mutedUntil = date
+        persistAll()
     }
 
     func resumeNudges() {
         guard mutedUntil != nil || defaults.bool(forKey: UserDefaultKeys.isMuted.rawValue) else { return }
         mutedUntil = nil
+        mutedWholeWindow = false
         clearFinishedWindow()
         defaults.removeObject(forKey: UserDefaultKeys.mutedUntil.rawValue)
         defaults.set(false, forKey: UserDefaultKeys.isMuted.rawValue)
+        defaults.set(false, forKey: UserDefaultKeys.mutedWholeWindow.rawValue)
         announceChange()
     }
 
@@ -732,9 +845,11 @@ final class AppSettings: ObservableObject {
     func clearExpiredMute(at date: Date = Date()) {
         guard let mutedUntil, mutedUntil <= date else { return }
         self.mutedUntil = nil
+        mutedWholeWindow = false
         clearFinishedWindow()
         defaults.removeObject(forKey: UserDefaultKeys.mutedUntil.rawValue)
         defaults.set(false, forKey: UserDefaultKeys.isMuted.rawValue)
+        defaults.set(false, forKey: UserDefaultKeys.mutedWholeWindow.rawValue)
     }
 
     private func persistAll() {
@@ -816,6 +931,7 @@ final class AppSettings: ObservableObject {
         } else {
             defaults.set(false, forKey: UserDefaultKeys.isMuted.rawValue)
         }
+        defaults.set(mutedWholeWindow, forKey: UserDefaultKeys.mutedWholeWindow.rawValue)
     }
 
     private func announceChange() {

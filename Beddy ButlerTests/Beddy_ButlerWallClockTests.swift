@@ -157,21 +157,69 @@ final class BeddyButlerWallClockTests: XCTestCase {
     @MainActor
     func testMenuBarIconIsAVisibleTemplateSymbol() throws {
         let icon = try XCTUnwrap(MenuBarIcon.make())
-        let pendingIcon = try XCTUnwrap(MenuBarIcon.make(pendingVisualNudge: true))
+        let mutedIcon = try XCTUnwrap(MenuBarIcon.make(state: .muted))
+        let pendingIcon = try XCTUnwrap(MenuBarIcon.make(state: .pendingVisualNudge))
 
-        XCTAssertTrue(icon.isTemplate)
-        XCTAssertTrue(pendingIcon.isTemplate)
-        XCTAssertGreaterThan(icon.size.width, 0)
-        XCTAssertGreaterThan(icon.size.height, 0)
-        XCTAssertNotNil(icon.tiffRepresentation)
-        XCTAssertNotNil(pendingIcon.tiffRepresentation)
+        for image in [icon, mutedIcon, pendingIcon] {
+            XCTAssertTrue(image.isTemplate)
+            XCTAssertGreaterThan(image.size.width, 0)
+            XCTAssertGreaterThan(image.size.height, 0)
+            XCTAssertNotNil(image.tiffRepresentation)
+        }
+        XCTAssertNotEqual(icon.tiffRepresentation, mutedIcon.tiffRepresentation)
+        XCTAssertNotEqual(icon.tiffRepresentation, pendingIcon.tiffRepresentation)
+    }
+
+    @MainActor
+    func testPreferencesOpensWithoutFocusingTheScheduleName() async throws {
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButlerPreferencesFocusTests")
+
+        let settings = AppSettings(defaults: defaults)
+        let scheduler = ButlerTimer(
+            settings: settings,
+            audioPlayer: AudioPlayer(),
+            intervalProvider: { $0.lowerBound },
+            escalationProvider: { 2 }
+        )
+        let controller = PreferencesWindowController(
+            settings: settings,
+            scheduler: scheduler,
+            loginItemManager: LoginItemManager(),
+            notificationManager: LocalNotificationManager()
+        )
+        defer {
+            scheduler.timer?.invalidate()
+            controller.close()
+        }
+
+        controller.present()
+        try await Task.sleep(for: .milliseconds(300))
+
+        let window = try XCTUnwrap(controller.window)
+        // A focused text field would have the shared field editor (an NSText) as first responder.
+        XCTAssertFalse(window.firstResponder is NSText, "A text field is focused on open")
+    }
+
+    @MainActor
+    func testRotationStepperUsesSingularForOneDay() {
+        XCTAssertEqual(PreferencesView.dayCount(1), "1 day")
+        XCTAssertEqual(PreferencesView.dayCount(4), "4 days")
+    }
+
+    @MainActor
+    func testTimeZoneIsShownByNameRatherThanIdentifier() {
+        let name = PreferencesView.timeZoneDisplayName(
+            "America/Argentina/Buenos_Aires",
+            locale: Locale(identifier: "en_GB")
+        )
+        XCTAssertFalse(name.contains("/"), name)
+        XCTAssertFalse(name.contains("_"), name)
+        XCTAssertEqual(PreferencesView.timeZoneDisplayName("Not/A_Zone"), "Not/A Zone")
     }
 
     @MainActor
     func testPreferencesWindowHasAResizableModernLayout() async throws {
-        let suiteName = "BeddyButlerPreferencesTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeIsolatedDefaults(prefix: "BeddyButlerPreferencesTests")
 
         let settings = AppSettings(defaults: defaults)
         let audioPlayer = AudioPlayer()
@@ -190,7 +238,6 @@ final class BeddyButlerWallClockTests: XCTestCase {
         defer {
             scheduler.timer?.invalidate()
             controller.close()
-            defaults.removePersistentDomain(forName: suiteName)
         }
 
         let window = try XCTUnwrap(controller.window)
@@ -204,9 +251,11 @@ final class BeddyButlerWallClockTests: XCTestCase {
         XCTAssertTrue(window.backgroundColor.isEqual(NSColor.clear))
         XCTAssertFalse(window.isRestorable)
         XCTAssertGreaterThanOrEqual(window.minSize.width, 640)
-        XCTAssertGreaterThanOrEqual(window.minSize.height, 680)
+        // Short enough for a 1024 x 640 "Larger Text" display; the content scrolls.
+        XCTAssertLessThanOrEqual(window.minSize.height, 540)
+        XCTAssertGreaterThanOrEqual(window.minSize.height, 420)
         XCTAssertGreaterThanOrEqual(contentView.bounds.width, 640)
-        XCTAssertGreaterThanOrEqual(contentView.bounds.height, 680)
+        XCTAssertGreaterThanOrEqual(contentView.bounds.height, 420)
 
         if let snapshotPath = ProcessInfo.processInfo.environment["BEDDY_BUTLER_SNAPSHOT_PATH"] {
             controller.showWindow(nil)

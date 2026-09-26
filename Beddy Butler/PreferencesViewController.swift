@@ -93,7 +93,7 @@ final class PreferencesWindowController: NSWindowController {
             window.appearance = NSAppearance(named: .darkAqua)
         }
         window.setContentSize(NSSize(width: 720, height: 800))
-        window.minSize = NSSize(width: 640, height: 680)
+        window.minSize = NSSize(width: 640, height: 420)
         window.isReleasedWhenClosed = false
         window.isRestorable = false
         window.center()
@@ -109,9 +109,19 @@ final class PreferencesWindowController: NSWindowController {
 
     func present() {
         guard let window else { return }
+        let wasVisible = window.isVisible
         NSApp.activate(ignoringOtherApps: true)
         showWindow(nil)
         window.makeKeyAndOrderFront(nil)
+        if !wasVisible {
+            // AppKit would otherwise focus the schedule name with its text selected,
+            // so one stray keystroke could rename the schedule. SwiftUI may assign
+            // focus a turn later, hence the deferred clear.
+            window.makeFirstResponder(nil)
+            Task { @MainActor [weak window] in
+                window?.makeFirstResponder(nil)
+            }
+        }
     }
 }
 
@@ -154,7 +164,8 @@ private struct AnimatedButlerArtwork: View {
     private var artwork: some View {
         switch presentation {
         case .header:
-            Image("AboutIcon")
+            // The full-bleed asset; recent macOS pads and masks applicationIconImage.
+            Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
@@ -290,6 +301,18 @@ struct PreferencesView: View {
                         preferenceSections
                     }
                     .coordinateSpace(name: "beddy-preferences-scroll")
+                    .overlay(alignment: .top) {
+                        // Backs the transparent title bar so scrolled content does not run under the window buttons.
+                        LinearGradient(
+                            colors: [BeddyPalette.nightLifted, BeddyPalette.nightLifted.opacity(0)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 44)
+                        .ignoresSafeArea(edges: .top)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    }
                     .background {
                         GeometryReader { viewport in
                             Color.clear
@@ -301,20 +324,30 @@ struct PreferencesView: View {
                                 }
                         }
                     }
-                    .onChange(of: settings.hasCompletedOnboarding) { completed in
-                        if completed {
-                            DispatchQueue.main.async {
-                                proxy.scrollTo("preferences-top", anchor: .top)
-                            }
-                        }
+                    .onReceive(
+                        NotificationCenter.default.publisher(for: .beddyWelcomeGuideRequested, object: settings)
+                    ) { _ in
+                        // The Welcome card sits at the top, and may already be shown but scrolled away.
+                        scrollToTop(proxy)
+                    }
+                    .onChange(of: settings.hasCompletedOnboarding) { _ in
+                        scrollToTop(proxy)
                     }
                 }
             }
-            .frame(minWidth: 640, minHeight: 680)
+            .frame(minWidth: 640, minHeight: 420)
             .tint(BeddyPalette.blue)
             .preferredColorScheme(.dark)
             .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
                 timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
+            }
+        }
+    }
+
+    private func scrollToTop(_ proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                proxy.scrollTo("preferences-top", anchor: .top)
             }
         }
     }
@@ -392,7 +425,7 @@ struct PreferencesView: View {
         }
         let start = WallClockTime.date(for: times.start, relativeTo: day, calendar: calendar)
         let end = WallClockTime.date(for: times.bed, relativeTo: day, calendar: calendar)
-        let suffix = times.bed <= times.start ? " next day" : ""
+        let suffix = times.bed < times.start ? " next day" : ""
         return "\(label): \(name), \(LocalizedScheduleText.time(start)) to \(LocalizedScheduleText.time(end))\(suffix)"
     }
 
@@ -406,7 +439,7 @@ struct PreferencesView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("YOUR EVENING, BEAUTIFULLY")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 10.5, weight: .bold))
                     .tracking(1.3)
                     .foregroundStyle(BeddyPalette.blueBright)
                 Text("Beddy Butler")
@@ -421,7 +454,7 @@ struct PreferencesView: View {
 
             Label(headerStatusTitle, systemImage: headerStatusSymbol)
                 .font(.callout.weight(.semibold))
-                .foregroundStyle(headerStatusTint)
+                .foregroundStyle(headerStatusTextColor)
                 .padding(.horizontal, 13)
                 .padding(.vertical, 8)
                 .glassCapsule(tint: headerStatusTint)
@@ -465,26 +498,19 @@ struct PreferencesView: View {
     private var tonightSection: some View {
         BeddyCard(
             title: "Tonight",
-            symbol: settings.isMuted() ? "pause.circle.fill" : "moon.stars.fill",
-            tint: settings.isMuted() ? BeddyPalette.warm : BeddyPalette.violet,
+            symbol: showsPausedStyle ? "pause.circle.fill" : "moon.stars.fill",
+            tint: showsPausedStyle ? BeddyPalette.warm : BeddyPalette.violet,
             emphasized: true
         ) {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: settings.isMuted() ? "pause.circle.fill" : "moon.stars.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(settings.isMuted() ? BeddyPalette.warm : BeddyPalette.violet)
-                        .accessibilityHidden(true)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(scheduleHeading)
-                            .font(.title3.weight(.semibold))
-                            .textSelection(.enabled)
-                        Text(scheduleDetail)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(scheduleHeading)
+                        .font(.title3.weight(.semibold))
+                        .textSelection(.enabled)
+                    Text(scheduleDetail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 HStack(spacing: 10) {
@@ -495,7 +521,6 @@ struct PreferencesView: View {
                             Label("Acknowledge Badge", systemImage: "checkmark")
                         }
                         .primaryGlassButton()
-                        .accessibilityLabel("Acknowledge visual badge")
                         .accessibilityIdentifier("tonight.acknowledge")
                         .accessibilityHint("Clears the persistent visual bedtime nudge")
                     }
@@ -509,6 +534,15 @@ struct PreferencesView: View {
                         .primaryGlassButton()
                         .accessibilityLabel("Resume nudges")
                         .accessibilityIdentifier("tonight.resume")
+
+                        if scheduler.isSnoozed {
+                            Button("Pause Tonight") {
+                                scheduler.muteForCurrentWindow()
+                            }
+                            .accessibilityIdentifier("tonight.pause")
+                            .accessibilityHint("Pause reminders for the current or next bedtime window")
+                            .help("Pause reminders for the current or next bedtime window")
+                        }
                     } else {
                         Button {
                             scheduler.snooze()
@@ -516,21 +550,17 @@ struct PreferencesView: View {
                             Label("Snooze \(settings.snoozeMinutes) minutes", systemImage: "timer")
                         }
                         .disabled(!scheduler.canSnooze)
-                        .accessibilityLabel("Snooze for \(settings.snoozeMinutes) minutes")
                         .accessibilityIdentifier("tonight.snooze")
-                        .help(
-                            scheduler.canSnooze
-                                ? "Stay quiet for \(settings.snoozeMinutes) minutes, or until bedtime if sooner"
-                                : "Snooze becomes available during the bedtime window"
-                        )
+                        .accessibilityHint(snoozeHelp)
+                        .help(snoozeHelp)
 
                         Button("Pause Tonight") {
                             scheduler.muteForCurrentWindow()
                         }
-                        .accessibilityLabel("Pause nudges for tonight")
                         .accessibilityIdentifier("tonight.pause")
                         .disabled(!settings.hasActivatedSchedule)
-                        .help("Stay quiet until the next bedtime window")
+                        .accessibilityHint("Pause reminders for the current or next bedtime window")
+                        .help("Pause reminders for the current or next bedtime window")
                     }
                 }
 
@@ -564,7 +594,7 @@ struct PreferencesView: View {
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(
                                         settings.tonightOverrideBedSeconds
-                                            <= settings.tonightOverrideStartSeconds
+                                            < settings.tonightOverrideStartSeconds
                                             ? "Bedtime next day"
                                             : "Bedtime"
                                     )
@@ -602,7 +632,6 @@ struct PreferencesView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .accessibilityLabel("Tonight")
     }
 
     private var scheduleSection: some View {
@@ -643,7 +672,7 @@ struct PreferencesView: View {
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(settings.bedSeconds <= settings.startSeconds ? "Bedtime next day" : "Bedtime")
+                        Text(settings.bedSeconds < settings.startSeconds ? "Bedtime next day" : "Bedtime")
                             .font(.callout.weight(.medium))
                         DatePicker(
                             "Bedtime",
@@ -789,12 +818,12 @@ struct PreferencesView: View {
 
                                 VStack(alignment: .leading, spacing: 10) {
                                     Stepper(
-                                        "\(settings.primaryScheduleName): \(settings.rotationPrimaryDays) days",
+                                        "\(settings.primaryScheduleName): \(Self.dayCount(settings.rotationPrimaryDays))",
                                         value: rotationPrimaryDaysBinding,
                                         in: 1...28
                                     )
                                     Stepper(
-                                        "\(settings.alternateScheduleName): \(settings.rotationAlternateDays) days",
+                                        "\(settings.alternateScheduleName): \(Self.dayCount(settings.rotationAlternateDays))",
                                         value: rotationAlternateDaysBinding,
                                         in: 1...28
                                     )
@@ -840,7 +869,7 @@ struct PreferencesView: View {
 
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(
-                                    settings.alternateBedSeconds <= settings.alternateStartSeconds
+                                    settings.alternateBedSeconds < settings.alternateStartSeconds
                                         ? "\(settings.alternateScheduleName) bedtime next day"
                                         : "\(settings.alternateScheduleName) bedtime"
                                 )
@@ -871,7 +900,7 @@ struct PreferencesView: View {
                 }
 
                 Label(
-                    "\(timeZoneIdentifier). Travel and clock changes update automatically.",
+                    "\(Self.timeZoneDisplayName(timeZoneIdentifier)). Travel and clock changes update automatically.",
                     systemImage: "globe"
                 )
                 .font(.callout)
@@ -925,7 +954,7 @@ struct PreferencesView: View {
                         Image(systemName: "bell.badge.fill")
                             .font(.system(size: 48, weight: .medium))
                             .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(BeddyPalette.violet)
                             .frame(width: 144, height: 172)
                             .accessibilityHidden(true)
                     }
@@ -941,6 +970,8 @@ struct PreferencesView: View {
                             Label(previewLabel, systemImage: previewSymbol)
                         }
                         .primaryGlassButton(tint: BeddyPalette.violet)
+                        // A badge preview is withheld after finishing tonight, so the button would do nothing.
+                        .disabled(settings.nudgeDelivery == .visual && scheduler.hasFinishedTonight)
                         .accessibilityLabel(previewLabel)
                         .accessibilityIdentifier("nudge.preview")
                         .accessibilityHint(previewAccessibilityHint)
@@ -966,7 +997,6 @@ struct PreferencesView: View {
                     Divider()
 
                     Toggle("Also show a silent Notification Centre alert", isOn: notificationAlertBinding)
-                        .accessibilityLabel("Show silent Notification Centre alerts")
                         .accessibilityIdentifier("nudge.notifications")
                         .accessibilityHint("Adds a local visual alert with acknowledge, snooze, and pause actions")
 
@@ -999,14 +1029,12 @@ struct PreferencesView: View {
     }
 
     private var behaviorSection: some View {
-        BeddyCard(title: "Behavior", symbol: "dial.medium", tint: BeddyPalette.warm) {
+        BeddyCard(title: "Behaviour", symbol: "dial.medium", tint: BeddyPalette.warm) {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Gradually firmer reminders", isOn: progressiveBinding)
                     .fontWeight(.medium)
-                    .accessibilityLabel("Progressive mode")
                     .accessibilityIdentifier("behavior.progressive")
                     .accessibilityHint("Escalates the selected personality after every two or three nudges")
-                    .disabled(!settings.nudgeDelivery.includesSound)
 
                 Picker(
                     "Firmest reminder",
@@ -1020,21 +1048,22 @@ struct PreferencesView: View {
                 .disabled(!settings.progressiveMode)
                 .accessibilityIdentifier("behavior.maximumPersonality")
 
-                Label(
-                    "\(settings.personality.capped(at: settings.maximumPersonality).title)  →  \(settings.maximumPersonality.title)",
-                    systemImage: "chart.line.uptrend.xyaxis"
-                )
-                .font(.callout.weight(.medium))
-                .foregroundStyle(.secondary)
+                if settings.progressiveMode {
+                    Label(
+                        "\(settings.personality.title)  →  \(settings.effectiveMaximumPersonality.title)",
+                        systemImage: "chart.line.uptrend.xyaxis"
+                    )
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(
+                        "\(settings.personality.title) to \(settings.effectiveMaximumPersonality.title)"
+                    )
 
-                Text(
-                    settings.nudgeDelivery.includesSound
-                        ? "Every few nudges, the butler grows more persuasive. Each bedtime window resets the voice."
-                        : "Progressive mode applies when sound is enabled. Visual badges remain persistent until acknowledged."
-                )
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                    Text("Every few nudges, the butler grows more persuasive. Each bedtime window resets the voice.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -1057,8 +1086,10 @@ struct PreferencesView: View {
                     .accessibilityLabel("Open Login Items Settings")
                     .accessibilityIdentifier("startup.openSettings")
                 } else if loginItemManager.state == .unavailable {
-                    Label("Launch at login becomes available in a signed app build.", systemImage: "info.circle")
-                        .foregroundStyle(.secondary)
+                    #if DEBUG
+                        Label("Launch at login becomes available in a signed app build.", systemImage: "info.circle")
+                            .foregroundStyle(.secondary)
+                    #endif
                 }
 
                 if let error = loginItemManager.lastError {
@@ -1102,7 +1133,7 @@ struct PreferencesView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(
-                "Schedules, personality, volume, nudge options, pauses, one night changes, and pending visual nudges will return to their original recommended values."
+                "Schedules, personality, volume, nudge options, pauses, one-night adjustments, and pending visual nudges will return to their original recommended values."
             )
         }
     }
@@ -1131,6 +1162,15 @@ struct PreferencesView: View {
         .contentShape(Rectangle())
     }
 
+    static func dayCount(_ days: Int) -> String {
+        "\(days) \(days == 1 ? "day" : "days")"
+    }
+
+    static func timeZoneDisplayName(_ identifier: String, locale: Locale = .autoupdatingCurrent) -> String {
+        TimeZone(identifier: identifier)?.localizedName(for: .generic, locale: locale)
+            ?? identifier.replacingOccurrences(of: "_", with: " ")
+    }
+
     static func alternateScheduleNightsTitle(_ scheduleName: String) -> String {
         "\(scheduleName) nights"
     }
@@ -1140,6 +1180,11 @@ struct PreferencesView: View {
         weekdayName: String
     ) -> String {
         "\(scheduleName) schedule on \(weekdayName) nights"
+    }
+
+    /// "I'm heading to bed" keeps the evening styling rather than the paused warning styling.
+    private var showsPausedStyle: Bool {
+        settings.isMuted() && !scheduler.hasFinishedTonight
     }
 
     private var headerStatusTitle: String {
@@ -1184,6 +1229,11 @@ struct PreferencesView: View {
         return BeddyPalette.faint
     }
 
+    /// Faint is too low in contrast for text, so the pill label uses muted in that state.
+    private var headerStatusTextColor: Color {
+        headerStatusTint == BeddyPalette.faint ? BeddyPalette.muted : headerStatusTint
+    }
+
     private var scheduleHeading: String {
         if !settings.hasActivatedSchedule { return "Awaiting setup" }
         if scheduler.visualNudgePending {
@@ -1196,7 +1246,7 @@ struct PreferencesView: View {
             return "Paused until \(LocalizedScheduleText.dayAndTime(mutedUntil))"
         }
         if let nextNudge = scheduler.nextNudge {
-            return "Next nudge at \(LocalizedScheduleText.dayAndTime(nextNudge))"
+            return "Next nudge: \(LocalizedScheduleText.dayAndTime(nextNudge))"
         }
         return "Waiting for a valid bedtime window"
     }
@@ -1223,6 +1273,12 @@ struct PreferencesView: View {
                 "\(scheduler.nextPersonality.title) voice and visual badge"
             }
         return "\(presentation), \(relative)."
+    }
+
+    private var snoozeHelp: String {
+        scheduler.canSnooze
+            ? "Stay quiet for \(settings.snoozeMinutes) minutes, or until bedtime if sooner"
+            : "Snooze becomes available during the bedtime window"
     }
 
     private var previewLabel: String {
@@ -1262,22 +1318,40 @@ struct PreferencesView: View {
     }
 
     private var visibleStatusMessage: String {
-        if scheduler.lastEvent != "Schedule is active." {
-            return scheduler.lastEvent
+        let event = scheduler.lastEvent
+        if !event.isEmpty, event != "Schedule is active.", !isStaleStatusReceipt(event) {
+            return event
         }
+        if !settings.hasActivatedSchedule { return "" }
         if settings.activeWeekdays.isEmpty {
             return "No active nights are selected."
         }
-        return scheduler.canSnooze
+        return scheduler.canSnooze || scheduler.isSnoozed
             ? "Your bedtime window is active."
             : "Waiting for tonight's bedtime window."
+    }
+
+    /// Receipts describing a state that has since ended (a pause that expired or was
+    /// resumed, or a schedule that became valid again) fall back to the live lines.
+    private func isStaleStatusReceipt(_ event: String) -> Bool {
+        if event == "No valid bedtime window is configured." {
+            return scheduler.nextNudge != nil
+        }
+        let describesPause =
+            event.hasPrefix("Snoozed until ")
+            || event == "Snooze reaches bedtime, so nudges are paused for tonight."
+            || event == "Nudges are paused for this bedtime window."
+            || event == "Good night."
+        return describesPause && !settings.isMuted()
     }
 
     private var weekdayChoices: [WeekdayChoice] {
         let calendar = Calendar.autoupdatingCurrent
         let short = calendar.shortStandaloneWeekdaySymbols
         let full = calendar.weekdaySymbols
-        return [2, 3, 4, 5, 6, 7, 1].map { weekday in
+        let first = calendar.firstWeekday
+        return (0..<7).map { offset in
+            let weekday = (first - 1 + offset) % 7 + 1
             let index = weekday - 1
             return WeekdayChoice(
                 weekday: weekday,
@@ -1325,7 +1399,7 @@ struct PreferencesView: View {
     private var tonightOverrideBinding: Binding<Bool> {
         Binding(
             get: {
-                settings.tonightOverrideIsActive()
+                settings.tonightOverridePending()
             },
             set: { enabled in
                 if enabled {

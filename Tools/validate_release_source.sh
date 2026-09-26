@@ -26,7 +26,7 @@ fi
 chmod 700 "$validation_root"
 trap 'rm -rf -- "$validation_root"' EXIT
 
-xcrun swift-format lint --recursive "Beddy Butler" "Beddy ButlerTests" Tools
+xcrun swift-format lint --strict --recursive "Beddy Butler" "Beddy ButlerTests" Tools
 plutil -lint \
   "Beddy Butler.xcodeproj/project.pbxproj" \
   "Beddy Butler/Info.plist" \
@@ -34,6 +34,12 @@ plutil -lint \
   "Beddy Butler/PrivacyInfo.xcprivacy" >/dev/null
 python3 Tools/validate_website.py
 python3 Tools/test_website_samples.py
+if ! command -v node >/dev/null 2>&1; then
+  print -u2 "Node.js is required to run the website behaviour tests. Install it, then rerun."
+  exit 69
+fi
+node Tools/test_website_samples.js
+node Tools/test_website_avatars.cjs
 python3 Tools/validate_app_store_metadata.py
 python3 Tools/validate_ci_workflow.py
 python3 Tools/check_large_files.py

@@ -62,10 +62,60 @@ process.standardOutput = log
 process.standardError = log
 
 let defaultsSuitePrefix = "BeddyButler.AccessibilitySmoke."
+// A signed candidate runs in the App Sandbox and writes its suite into its
+// container rather than the user's preferences folder, so clean up both.
+let candidateBundleIdentifier =
+    Bundle(
+        url: executable.resolvingSymlinksInPath()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    )?.bundleIdentifier
 
 func isOwnedDefaultsSuite(_ suiteName: String) -> Bool {
     guard suiteName.hasPrefix(defaultsSuitePrefix) else { return false }
     return UUID(uuidString: String(suiteName.dropFirst(defaultsSuitePrefix.count))) != nil
+}
+
+func preferenceFiles(for suiteName: String) -> [URL] {
+    let library = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library", isDirectory: true)
+    var directories = [library.appendingPathComponent("Preferences", isDirectory: true)]
+    if let candidateBundleIdentifier {
+        directories.append(
+            library.appendingPathComponent("Containers", isDirectory: true)
+                .appendingPathComponent(candidateBundleIdentifier, isDirectory: true)
+                .appendingPathComponent("Data/Library/Preferences", isDirectory: true)
+        )
+    }
+    return directories.map { $0.appendingPathComponent("\(suiteName).plist") }
+}
+
+func deleteDefaultsDomain(_ domain: String) -> Bool {
+    let delete = Process()
+    delete.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+    delete.arguments = ["delete", domain]
+    let deleteError = Pipe()
+    delete.standardOutput = FileHandle.nullDevice
+    delete.standardError = deleteError
+    do {
+        try delete.run()
+    } catch {
+        fputs("Accessibility-smoke defaults cleanup failed: \(error.localizedDescription)\n", stderr)
+        return false
+    }
+    let deleteMessage = String(
+        decoding: deleteError.fileHandleForReading.readDataToEndOfFile(),
+        as: UTF8.self
+    )
+    delete.waitUntilExit()
+    // Only one of the two locations holds the suite, so `defaults` reports the
+    // other as a missing domain rather than a failure to clear.
+    guard delete.terminationStatus == 0 || deleteMessage.contains("not found") else {
+        fputs("Accessibility-smoke defaults cleanup command failed.\n", stderr)
+        return false
+    }
+    return true
 }
 
 @discardableResult
@@ -74,38 +124,32 @@ func clearDefaultsSuite(named suiteName: String) -> Bool {
         fputs("Refusing to clear an unexpected accessibility-smoke defaults domain.\n", stderr)
         return false
     }
-    let delete = Process()
-    delete.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
-    delete.arguments = ["delete", suiteName]
-    delete.standardOutput = FileHandle.nullDevice
-    delete.standardError = FileHandle.nullDevice
-    do {
-        try delete.run()
-    } catch {
-        fputs("Accessibility-smoke defaults cleanup failed: \(error.localizedDescription)\n", stderr)
-        return false
-    }
-    delete.waitUntilExit()
-    guard delete.terminationStatus == 0 else {
-        fputs("Accessibility-smoke defaults cleanup command failed.\n", stderr)
-        return false
-    }
+    let preferenceFiles = preferenceFiles(for: suiteName)
+    // Clear each plist through cfprefsd first, so a flush still pending from
+    // the terminated child cannot recreate the file after it is removed.
+    var cleared = preferenceFiles.map {
+        deleteDefaultsDomain($0.deletingPathExtension().path)
+    }.allSatisfy { $0 }
 
     Thread.sleep(forTimeInterval: 0.2)
-    let preferenceFile = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Preferences", isDirectory: true)
-        .appendingPathComponent("\(suiteName).plist")
-    guard FileManager.default.fileExists(atPath: preferenceFile.path) else { return true }
-    do {
-        // The child is terminated before cleanup, and the UUID-qualified suite
-        // belongs solely to this probe. Remove any cfprefsd file left behind by
-        // the domain deletion, including the expected defaults the app seeded.
-        try FileManager.default.removeItem(at: preferenceFile)
-        return !FileManager.default.fileExists(atPath: preferenceFile.path)
-    } catch {
-        fputs("Accessibility-smoke defaults cleanup failed: \(error.localizedDescription)\n", stderr)
-        return false
+    for preferenceFile in preferenceFiles
+    where FileManager.default.fileExists(atPath: preferenceFile.path) {
+        do {
+            // The child is terminated before cleanup, and the UUID-qualified suite
+            // belongs solely to this probe. Remove any cfprefsd file left behind by
+            // the domain deletion, including the expected defaults the app seeded.
+            try FileManager.default.removeItem(at: preferenceFile)
+        } catch {
+            fputs("Accessibility-smoke defaults cleanup failed: \(error.localizedDescription)\n", stderr)
+        }
     }
+    Thread.sleep(forTimeInterval: 1)
+    for preferenceFile in preferenceFiles
+    where FileManager.default.fileExists(atPath: preferenceFile.path) {
+        fputs("Accessibility-smoke defaults remain at \(preferenceFile.path)\n", stderr)
+        cleared = false
+    }
+    return cleared
 }
 
 try process.run()

@@ -4,14 +4,14 @@ Use `COMPLETION_AUDIT.md` for the programme-wide proof matrix. This checklist re
 
 ## Automated gate
 
-1. Run `zsh Tools/validate_release_source.sh`, then run the static analyzer, unsigned universal Release build, and design lint.
+1. Run `zsh Tools/validate_release_source.sh` (Node.js is required for the website behaviour tests), then run the unsigned universal Release build with `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES` and design lint.
 2. Confirm every Zombie release clip is at most 10 seconds and the processing report matches the 91 preserved sources.
 3. Run `python3 Tools/validate_app_bundle.py <app> --version <version> --build <build> --require-universal` and confirm the Release bundle contains all 103 canonical MP3 files with matching SHA-256 content, no source-only recordings, the expected privacy manifest, and both supported architectures.
 4. Run `python3 Tools/test_security_posture.py` and confirm App Sandbox, hardened runtime, minimal entitlements, privacy declarations, fixed destinations, and absence of sensitive permissions or network APIs.
 5. Run `python3 Tools/check_large_files.py` and confirm the working tree, staged tree, and recent commit range contain no file larger than 50 MB.
 6. Run `xcrun swift Tools/runtime_smoke_test.swift <path-to-signed-executable>` and confirm the real preferences window appears.
 7. Run `xcrun swift Tools/accessibility_smoke_test.swift <path-to-signed-executable>` from a terminal with Accessibility permission.
-8. Run `xcrun swift Tools/capture_acceptance_states.swift <app executable> <new-output-directory>`. Verify all 12 image hashes against the manifest and inspect the six-state Tonight contact sheet. Treat the complete-form Preferences renders as structural evidence when AppKit controls display placeholders, then inspect the real Preferences window manually on the exact candidate.
+8. Run `xcrun swift Tools/capture_acceptance_states.swift <app executable> <new-output-directory>`. Use an unsigned build, because the harness refuses a sandboxed one. Verify every image hash against the manifest and inspect the Tonight contact sheet. Treat the complete-form Preferences renders as structural evidence when AppKit controls display placeholders, then inspect the real Preferences window manually on the exact candidate.
 9. Confirm visual nudge state and count survive quit and relaunch until acknowledged.
 10. Confirm silent local notifications contain Acknowledge, Snooze, and Pause actions and make no network request.
 11. Confirm `PrivacyInfo.xcprivacy` is present in `Contents/Resources`, declares UserDefaults reason `CA92.1`, and declares no tracking or collected data.
@@ -28,11 +28,11 @@ Use `COMPLETION_AUDIT.md` for the programme-wide proof matrix. This checklist re
 
 ## Mac App Store gate
 
-1. Create the App Store Connect record for bundle identifier `com.nellwatson.Beddy-Butler` before uploading a build.
-2. Accept current developer agreements and confirm Beddy Butler is available as the product name.
-3. Run `Tools/app_store_release.sh --preflight 2.0.3 613` and resolve every failure.
+1. In the existing App Store Connect record (id1197329062) for bundle identifier `com.nellwatson.Beddy-Butler`, create the 2.0.3 version before uploading a build.
+2. Accept current developer agreements.
+3. Run `Tools/app_store_release.sh --preflight 2.0.3 614` and resolve every failure.
 4. Confirm an Apple Distribution certificate or Xcode managed cloud signing is available.
-5. Record Nell's approval for the exact clean commit, version, and build. Set `BEDDY_APP_STORE_UPLOAD_APPROVAL` to `APP_STORE_UPLOAD:<40-character-commit>:2.0.3:613`, run `Tools/app_store_release.sh --upload 2.0.3 613`, and confirm the build finishes processing in App Store Connect.
+5. Record Nell's approval for the exact clean commit, version, and build. Set `BEDDY_APP_STORE_UPLOAD_APPROVAL` to `APP_STORE_UPLOAD:<40-character-commit>:2.0.3:614`, run `Tools/app_store_release.sh --upload 2.0.3 614`, and confirm the build finishes processing in App Store Connect.
 6. Apply the copy and URLs from `AppStore/en-GB`, then upload the six 2880 by 1800 images from `AppStore/Screenshots` in filename order.
 7. Complete the age rating, pricing, territories, export compliance, content rights, and app privacy questionnaires accurately.
 8. Confirm the Marketing, Support, and Privacy URLs return HTTP 200 over HTTPS before submission.
@@ -41,8 +41,8 @@ Use `COMPLETION_AUDIT.md` for the programme-wide proof matrix. This checklist re
 
 ## Website gate
 
-1. Run `python3 Tools/validate_website.py`, `python3 Tools/test_live_destinations.py`, and `npx impeccable detect Website`.
-2. Run `python3 Tools/validate_live_destinations.py --mode current`. Confirm the current public home, privacy, support, sitemap, security contact, App Store record, and canonical repository are coherent, while the unpublished accessibility and press routes remain HTTP 404.
+1. Run `python3 Tools/validate_website.py`, `python3 Tools/test_live_destinations.py`, and `npx --yes impeccable@4.1.0 detect Website`. Record the impeccable version with the result.
+2. Run `python3 Tools/validate_live_destinations.py --mode current`. Confirm the current public home, privacy, support, accessibility, press, sitemap, security contact, App Store record, and canonical repository are coherent.
 3. After Nell approves the exact clean commit, manually dispatch the GitHub Pages workflow on `master` with that 40-character SHA and `DEPLOY_WEBSITE:<40-character-commit>` as the approval input. Confirm validation and deployment complete for that SHA.
 4. Confirm the `github-pages` environment remains restricted to `master`. This was verified through the GitHub API on 12 August 2026. If the repository plan supports it, require Nell as a deployment reviewer and disable administrator bypass. Workflow input checks remain required even when environment protection is configured.
 5. Configure `www.beddybutler.com` as the repository custom domain before changing DNS.
@@ -61,4 +61,5 @@ Use `COMPLETION_AUDIT.md` for the programme-wide proof matrix. This checklist re
 8. Record that voice, character, icon, name, and repository publication rights were confirmed by the rights holder on 22 July 2026.
 9. Replay the Welcome Guide and confirm the saved schedule, personality, volume, and delivery choices remain unchanged.
 10. Restore recommended defaults, confirm the destructive action asks first, and verify Open at Login plus macOS notification permission remain unchanged.
-11. Record every result in the exact candidate evidence file. A prior candidate's acceptance does not transfer after any source, asset, metadata, or signing change.
+11. Launch and smoke-test the candidate on a macOS 13 Ventura Mac or VM: menu bar, Tonight panel, Preferences fallback styling, voice clip, notification, and Open at Login toggle.
+12. Record every result in the exact candidate evidence file. A prior candidate's acceptance does not transfer after any source, asset, metadata, or signing change.

@@ -11,7 +11,7 @@ Status meanings:
 * **Distribution gate**: signing, notarization, upload, TestFlight, or store processing requires external account state and explicit approval.
 * **Publication gate**: a live mutation is deliberately withheld until Nell approves it.
 * **Environment gate**: the required verifier cannot run under this host profile.
-* **Roadmap**: deliberately sequenced after the verified 2.0.2 release rather than implied as release scope.
+* **Roadmap**: deliberately sequenced after the verified 2.0.3 release rather than implied as release scope.
 
 ## Local completion matrix
 
@@ -19,7 +19,7 @@ Status meanings:
 | --- | --- | --- | --- |
 | Release preparation | Candidate identity, dirty-state warning, exact evidence record, large-file guard, metadata guard, visual evidence, and fail-closed publication controls | Proven locally | `RELEASE_EVIDENCE_TEMPLATE.md`, `Tools/create_release_evidence.py`, `Tools/check_large_files.py`, `Tools/require_publication_approval.py`, `Tools/capture_acceptance_states.swift`, integrated source validation |
 | Release preparation | Commit, signed archive, notarization, packages, or upload | Distribution gate | Requires a clean exact commit, explicit approval phrase, signing identity, and destination credentials |
-| Acceptance | Deterministic scheduling, migration, delivery, notification, audio, rendering, source, bundle, and runtime machine checks | Proven locally | 73 XCTest cases plus source, analyzer, universal Release build, bundle, runtime, website, and negative-control evidence in the latest candidate record under `build/release-evidence` |
+| Acceptance | Deterministic scheduling, migration, delivery, notification, audio, rendering, source, bundle, and runtime machine checks | Proven locally | 130 XCTest cases plus source, warnings-as-errors universal Release build, bundle, runtime, website, and negative-control evidence in the latest candidate record under `build/release-evidence` |
 | Acceptance | VoiceOver, Full Keyboard Access, native visual judgment, real Notification Centre, audio routes, sleep and wake, clock changes, clean install, upgrade, and multiple displays | Person gate | `RELEASE_CHECKLIST.md` and exact-candidate evidence table |
 | Product clarity | First-launch guidance, above-the-fold Tonight state, explicit snooze and pause, preview, onboarding replay, and confirmed defaults restoration | Proven locally | Production views, accessibility identifiers, state captures, and XCTest coverage |
 | Accessibility | Labels and hints, text plus symbol state, Reduced Motion behavior, visual delivery, accessibility support route, and dedicated issue intake | Proven locally | App sources, rig tests, `Website/accessibility/index.html`, `.github/ISSUE_TEMPLATE/accessibility.yml` |
@@ -44,7 +44,7 @@ Status meanings:
 
 ## Exact local candidate
 
-The current candidate remains a dirty local working tree by design. Its evidence record is generated under `build/release-evidence` and binds the base commit, version, build, and complete working-tree digest. That record cannot become publication authority. Any source, copy, asset, metadata, signing, or commit change requires fresh evidence.
+Each candidate's evidence record is generated under `build/release-evidence` and binds the commit, version, build, and complete working-tree digest. That record cannot become publication authority. Any source, copy, asset, metadata, signing, or commit change requires fresh evidence.
 
 No local pass may promote a person, rights, signed-distribution, security-environment, or publication gate. No remote action is authorized by this matrix.
 

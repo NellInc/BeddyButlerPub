@@ -8,11 +8,20 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlparse
 import json
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "Website"
+# GitHub Pages cannot send headers, so every public page carries this policy.
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; media-src 'self'; frame-src 'self'; connect-src 'none'; "
+    "object-src 'none'; base-uri 'none'; form-action 'none'"
+)
+# Non-executable script types that CSP does not govern.
+DATA_SCRIPT_TYPES = {"application/ld+json", "application/json"}
 
 
 class PageParser(HTMLParser):
@@ -29,6 +38,8 @@ class PageParser(HTMLParser):
         self.has_description = False
         self.has_viewport = False
         self.has_language = False
+        self.csp: list[str] = []
+        self.inline_scripts = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = dict(attrs)
@@ -42,6 +53,19 @@ class PageParser(HTMLParser):
                 self.canonical = values["href"]
         if tag in {"script", "source", "audio", "iframe"} and values.get("src"):
             self.resources.append(values["src"] or "")
+        if (
+            tag == "script"
+            and not values.get("src")
+            and (values.get("type") or "").strip().lower() not in DATA_SCRIPT_TYPES
+        ):
+            self.inline_scripts += 1
+        if (
+            tag == "meta"
+            and (values.get("http-equiv") or "").lower() == "content-security-policy"
+        ):
+            self.csp.append(values.get("content") or "")
+        if any(name.startswith("on") for name in values):
+            self.inline_scripts += 1
         if tag == "source" and values.get("srcset"):
             self.resources.extend(
                 candidate.strip().split()[0]
@@ -97,6 +121,41 @@ def local_target(
 
 def is_inside_site(target: Path) -> bool:
     return target.is_relative_to(SITE.resolve())
+
+
+def last_commit_date(path: Path) -> str | None:
+    """Date of the last commit touching path, or None without full git history."""
+    try:
+        shallow = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "--is-shallow-repository"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        if shallow != "false":
+            return None
+        date = subprocess.run(
+            ["git", "-C", str(ROOT), "log", "-1", "--format=%as", "--", str(path)],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return date or None
+
+
+def stale_sitemap_dates(sitemap: ET.ElementTree, namespace: dict[str, str]) -> list[str]:
+    errors: list[str] = []
+    for url in sitemap.findall("sitemap:url", namespace):
+        location = (url.findtext("sitemap:loc", "", namespace) or "").strip()
+        lastmod = (url.findtext("sitemap:lastmod", "", namespace) or "").strip()
+        page, _ = local_target(urlparse(location).path or "/")
+        if page is None or not lastmod:
+            continue
+        committed = last_commit_date(page)
+        if committed and lastmod < committed:
+            errors.append(
+                f"sitemap.xml: lastmod {lastmod} for {location} is older than "
+                f"its last commit on {committed}"
+            )
+    return errors
 
 
 def main() -> int:
@@ -184,6 +243,17 @@ def main() -> int:
                 errors.append(
                     f"{rel}: expected canonical {expected_canonical}, found {parser.canonical!r}"
                 )
+        if page.relative_to(SITE).parts[0] != "experiments":
+            if parser.csp != [CONTENT_SECURITY_POLICY]:
+                errors.append(
+                    f"{rel}: expected exactly one Content-Security-Policy meta tag "
+                    f"with the site policy, found {parser.csp!r}"
+                )
+            if parser.inline_scripts:
+                errors.append(
+                    f"{rel}: {parser.inline_scripts} inline executable script(s) "
+                    "would be blocked by the Content-Security-Policy"
+                )
         duplicates = sorted(
             {value for value in parser.ids if parser.ids.count(value) > 1}
         )
@@ -245,6 +315,7 @@ def main() -> int:
             f"Missing {sorted(canonical_pages - sitemap_locations)}; "
             f"extra {sorted(sitemap_locations - canonical_pages)}"
         )
+    errors.extend(stale_sitemap_dates(sitemap, namespace))
 
     required_primary_links = {
         "/accessibility/",

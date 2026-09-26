@@ -55,11 +55,13 @@ final class LoginItemManager: ObservableObject {
         lastError = nil
 
         do {
+            let isRegistered = service.status == .enabled || service.status == .requiresApproval
             if enabled {
-                if service.status == .notRegistered {
+                // Registering from .notFound often succeeds; otherwise the error surfaces in lastError.
+                if !isRegistered {
                     try service.register()
                 }
-            } else if service.status != .notRegistered {
+            } else if isRegistered {
                 try service.unregister()
             }
         } catch {

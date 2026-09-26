@@ -11,11 +11,12 @@
 		BBAA00000000000000000004 /* TonightPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBAA00000000000000000003 /* TonightPopoverView.swift */; };
 		BBAA00000000000000000006 /* BeddyDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBAA00000000000000000005 /* BeddyDesign.swift */; };
 		BBAA00000000000000000008 /* Beddy_ButlerNotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBAA00000000000000000007 /* Beddy_ButlerNotificationTests.swift */; };
+		BBEE00000000000000000002 /* Beddy_ButlerTestDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBEE00000000000000000001 /* Beddy_ButlerTestDefaults.swift */; };
 		BBDD00000000000000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BBDD00000000000000000002 /* PrivacyInfo.xcprivacy */; };
 		BEEA00000000000000000001 /* ButlerRigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEEA00000000000000000002 /* ButlerRigView.swift */; };
 		BEEA00000000000000000003 /* Beddy_ButlerRigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEEA00000000000000000004 /* Beddy_ButlerRigTests.swift */; };
 		2D20F5B81B84CF3F00FE7EFC /* ButlerTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D20F5B71B84CF3F00FE7EFC /* ButlerTimer.swift */; };
-		2D30884B1B83878E0015E1A0 /* Betty_ButlerUserDefaultsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D30884A1B83878E0015E1A0 /* Betty_ButlerUserDefaultsTests.swift */; };
+		2D30884B1B83878E0015E1A0 /* Beddy_ButlerUserDefaultsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D30884A1B83878E0015E1A0 /* Beddy_ButlerUserDefaultsTests.swift */; };
 		2D4B84851B87230F00735187 /* UserDefaultKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4B84841B87230F00735187 /* UserDefaultKeys.swift */; };
 		2D5AD2191B87597A008953B1 /* Beddy_ButlerTimerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D5AD2181B87597A008953B1 /* Beddy_ButlerTimerTests.swift */; };
 		2D5ECA231C26F034005C9E1A /* 20151210 - Nell Watson - Insistent.01.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2D5EC9C81C26F034005C9E1A /* 20151210 - Nell Watson - Insistent.01.mp3 */; };
@@ -116,7 +117,7 @@
 		2DC766FF1B78D25F00866072 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DC766FE1B78D25F00866072 /* AppDelegate.swift */; };
 		2DC767011B78D25F00866072 /* PreferencesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DC767001B78D25F00866072 /* PreferencesViewController.swift */; };
 		2DC767031B78D25F00866072 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2DC767021B78D25F00866072 /* Images.xcassets */; };
-		2DC767121B78D25F00866072 /* Beddy_ButlerSliderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DC767111B78D25F00866072 /* Beddy_ButlerSliderTests.swift */; };
+		2DC767121B78D25F00866072 /* Beddy_ButlerWallClockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DC767111B78D25F00866072 /* Beddy_ButlerWallClockTests.swift */; };
 		2DCCAA221BD76EED00F96405 /* Beddy_ButlerLoginTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DCCAA211BD76EED00F96405 /* Beddy_ButlerLoginTests.swift */; };
 		A17B00000000000000000001 /* 20151210 - Nell Watson - Zombie.09b.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F00000000000000000001 /* 20151210 - Nell Watson - Zombie.09b.mp3 */; };
 		A17B00000000000000000002 /* 20151210 - Nell Watson - Zombie.09c.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A17F00000000000000000002 /* 20151210 - Nell Watson - Zombie.09c.mp3 */; };
@@ -147,11 +148,12 @@
 		BBAA00000000000000000003 /* TonightPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonightPopoverView.swift; sourceTree = "<group>"; };
 		BBAA00000000000000000005 /* BeddyDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeddyDesign.swift; sourceTree = "<group>"; };
 		BBAA00000000000000000007 /* Beddy_ButlerNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerNotificationTests.swift; sourceTree = "<group>"; };
+		BBEE00000000000000000001 /* Beddy_ButlerTestDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerTestDefaults.swift; sourceTree = "<group>"; };
 		BBDD00000000000000000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BEEA00000000000000000002 /* ButlerRigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButlerRigView.swift; sourceTree = "<group>"; };
 		BEEA00000000000000000004 /* Beddy_ButlerRigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerRigTests.swift; sourceTree = "<group>"; };
 		2D20F5B71B84CF3F00FE7EFC /* ButlerTimer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ButlerTimer.swift; sourceTree = "<group>"; };
-		2D30884A1B83878E0015E1A0 /* Betty_ButlerUserDefaultsTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Betty_ButlerUserDefaultsTests.swift; sourceTree = "<group>"; };
+		2D30884A1B83878E0015E1A0 /* Beddy_ButlerUserDefaultsTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerUserDefaultsTests.swift; sourceTree = "<group>"; };
 		2D4B84841B87230F00735187 /* UserDefaultKeys.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UserDefaultKeys.swift; sourceTree = "<group>"; };
 		2D5AD2181B87597A008953B1 /* Beddy_ButlerTimerTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerTimerTests.swift; sourceTree = "<group>"; };
 		2D5EC9C81C26F034005C9E1A /* 20151210 - Nell Watson - Insistent.01.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Insistent.01.mp3"; path = "Sounds/20151210 - Nell Watson - Insistent.01.mp3"; sourceTree = "<group>"; };
@@ -256,7 +258,7 @@
 		2DC767021B78D25F00866072 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		2DC7670B1B78D25F00866072 /* Beddy ButlerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Beddy ButlerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2DC767101B78D25F00866072 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		2DC767111B78D25F00866072 /* Beddy_ButlerSliderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerSliderTests.swift; sourceTree = "<group>"; };
+		2DC767111B78D25F00866072 /* Beddy_ButlerWallClockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerWallClockTests.swift; sourceTree = "<group>"; };
 		2DCCAA211BD76EED00F96405 /* Beddy_ButlerLoginTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Beddy_ButlerLoginTests.swift; sourceTree = "<group>"; };
 		2DD3490E1BAEC1B30097D9E5 /* Beddy Butler.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "Beddy Butler.entitlements"; sourceTree = "<group>"; };
 		A17F00000000000000000001 /* 20151210 - Nell Watson - Zombie.09b.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "20151210 - Nell Watson - Zombie.09b.mp3"; path = "Sounds/20151210 - Nell Watson - Zombie.09b.mp3"; sourceTree = "<group>"; };
@@ -462,10 +464,11 @@
 				BEEA00000000000000000004 /* Beddy_ButlerRigTests.swift */,
 				BBAA00000000000000000007 /* Beddy_ButlerNotificationTests.swift */,
 				2D5AD2181B87597A008953B1 /* Beddy_ButlerTimerTests.swift */,
-				2D30884A1B83878E0015E1A0 /* Betty_ButlerUserDefaultsTests.swift */,
-				2DC767111B78D25F00866072 /* Beddy_ButlerSliderTests.swift */,
+				2D30884A1B83878E0015E1A0 /* Beddy_ButlerUserDefaultsTests.swift */,
+				2DC767111B78D25F00866072 /* Beddy_ButlerWallClockTests.swift */,
 				2D9B85321B83678F002795F8 /* Beddy_ButlerAudioTests.swift */,
 				2DCCAA211BD76EED00F96405 /* Beddy_ButlerLoginTests.swift */,
+				BBEE00000000000000000001 /* Beddy_ButlerTestDefaults.swift */,
 				2DC7670F1B78D25F00866072 /* Supporting Files */,
 			);
 			path = "Beddy ButlerTests";
@@ -721,10 +724,11 @@
 				BEEA00000000000000000003 /* Beddy_ButlerRigTests.swift in Sources */,
 				BBAA00000000000000000008 /* Beddy_ButlerNotificationTests.swift in Sources */,
 				2D5AD2191B87597A008953B1 /* Beddy_ButlerTimerTests.swift in Sources */,
-				2DC767121B78D25F00866072 /* Beddy_ButlerSliderTests.swift in Sources */,
+				2DC767121B78D25F00866072 /* Beddy_ButlerWallClockTests.swift in Sources */,
 				2D9B85331B83678F002795F8 /* Beddy_ButlerAudioTests.swift in Sources */,
 				2DCCAA221BD76EED00F96405 /* Beddy_ButlerLoginTests.swift in Sources */,
-				2D30884B1B83878E0015E1A0 /* Betty_ButlerUserDefaultsTests.swift in Sources */,
+				2D30884B1B83878E0015E1A0 /* Beddy_ButlerUserDefaultsTests.swift in Sources */,
+				BBEE00000000000000000002 /* Beddy_ButlerTestDefaults.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -831,7 +835,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 613;
+				CURRENT_PROJECT_VERSION = 614;
 				DEVELOPMENT_TEAM = BBYYCBH7EW;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -842,6 +846,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nellwatson.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_INSTALL_OBJC_HEADER = NO;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
@@ -857,7 +862,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 613;
+				CURRENT_PROJECT_VERSION = 614;
 				DEVELOPMENT_TEAM = BBYYCBH7EW;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;

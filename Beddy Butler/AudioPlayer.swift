@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import OSLog
 
 enum ButlerPersonality: String, CaseIterable, Identifiable, Codable, Sendable {
     case shy
@@ -16,9 +17,9 @@ enum ButlerPersonality: String, CaseIterable, Identifiable, Codable, Sendable {
         }
     }
 
-    var assetName: String { "\(title)Icon" }
     var rigAssetName: String { "\(title)Rig" }
-    var sampleLabel: String { "Hear \(self == .insistent ? "an" : "a") \(title) Sample" }
+    var indefiniteArticle: String { self == .insistent ? "an" : "a" }
+    var sampleLabel: String { "Hear \(indefiniteArticle) \(title) Sample" }
 
     var guidance: String {
         switch self {
@@ -114,10 +115,10 @@ enum AudioPlayerError: LocalizedError {
         switch self {
         case .noClips(let personality):
             "No \(personality.title) voice clips were found in the app bundle."
-        case .playbackRefused(let url):
-            "macOS could not start \(url.lastPathComponent)."
-        case .playbackFailed(let url, let error):
-            "Could not play \(url.lastPathComponent): \(error.localizedDescription)"
+        case .playbackRefused:
+            "macOS could not start the voice clip."
+        case .playbackFailed(_, let error):
+            "Could not play the voice clip: \(error.localizedDescription)"
         }
     }
 }
@@ -126,13 +127,20 @@ enum AudioPlayerError: LocalizedError {
 protocol AudioPlaying: AnyObject {
     @discardableResult
     func play(_ personality: ButlerPersonality, volume: Double) throws -> URL
+    /// Fades out and stops any clip that is still playing.
+    func stop()
 }
 
 @MainActor
 final class AudioPlayer: AudioPlaying {
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "BeddyButler",
+        category: "audio"
+    )
     private let library: AudioLibrary
     private var player: AVAudioPlayer?
     private var clipSelector = AudioClipSelector()
+    private static let fadeOutDuration: TimeInterval = 0.2
 
     init(library: AudioLibrary = AudioLibrary()) {
         self.library = library
@@ -146,17 +154,38 @@ final class AudioPlayer: AudioPlaying {
 
         do {
             let nextPlayer = try AVAudioPlayer(contentsOf: clip)
-            let finiteVolume = volume.isFinite ? volume : AppSettings.defaultVoiceVolume
-            nextPlayer.volume = Float(min(max(finiteVolume, 0), 1))
+            nextPlayer.volume = Self.amplitude(forSliderPosition: volume)
             guard nextPlayer.prepareToPlay(), nextPlayer.play() else {
                 throw AudioPlayerError.playbackRefused(clip)
             }
             player = nextPlayer
             return clip
         } catch let error as AudioPlayerError {
+            logger.error("Could not play \(clip.lastPathComponent, privacy: .public)")
             throw error
         } catch {
+            logger.error(
+                "Could not play \(clip.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
             throw AudioPlayerError.playbackFailed(clip, error)
         }
+    }
+
+    func stop() {
+        guard let fading = player else { return }
+        player = nil
+        guard fading.isPlaying else { return }
+        fading.setVolume(0, fadeDuration: Self.fadeOutDuration)
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(Self.fadeOutDuration))
+            fading.stop()
+        }
+    }
+
+    /// Maps the linear volume slider to a squared amplitude so quiet settings stay usable.
+    static func amplitude(forSliderPosition volume: Double) -> Float {
+        let finiteVolume = volume.isFinite ? volume : AppSettings.defaultVoiceVolume
+        let position = min(max(finiteVolume, 0), 1)
+        return Float(position * position)
     }
 }

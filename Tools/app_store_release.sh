@@ -5,12 +5,10 @@ root="${0:A:h:h}"
 cd "$root"
 
 mode="${1:---preflight}"
-version="${2:-2.0.3}"
-build="${3:-613}"
+requested_version="${2:-}"
+requested_build="${3:-}"
 team_id="${BEDDY_APPLE_TEAM_ID:-BBYYCBH7EW}"
 temporary_base="${TMPDIR:-/tmp}"
-archive="${BEDDY_ARCHIVE_PATH:-${temporary_base}/BeddyButler-${version}-${build}.xcarchive}"
-export_dir="${BEDDY_EXPORT_PATH:-${temporary_base}/BeddyButler-AppStore-${version}-${build}}"
 resolved_temporary_base="${temporary_base:A}"
 
 if [[ "$resolved_temporary_base" == "/" || "$resolved_temporary_base" == "${HOME:A}" || "$resolved_temporary_base" == "${root:A}" ]]; then
@@ -42,6 +40,42 @@ case "$mode" in
     exit 64
     ;;
 esac
+
+command -v rg >/dev/null 2>&1 || {
+  print -u2 "ripgrep (rg) is required for the update-path scan."
+  exit 69
+}
+
+build_settings="$(
+  xcodebuild -project "Beddy Butler.xcodeproj" -scheme "Beddy Butler" \
+    -configuration Release -showBuildSettings 2>/dev/null
+)" || {
+  print -u2 "Could not read the Release build settings."
+  exit 1
+}
+build_setting() {
+  print -r -- "$build_settings" |
+    awk -F ' = ' -v key="$1" '
+      !found && $1 ~ ("^[[:space:]]*" key "$") { value = $2; found = 1 }
+      END { print value }
+    '
+}
+project_version="$(build_setting MARKETING_VERSION)"
+project_build="$(build_setting CURRENT_PROJECT_VERSION)"
+bundle_id="$(build_setting PRODUCT_BUNDLE_IDENTIFIER)"
+[[ -n "$project_version" && -n "$project_build" ]] || {
+  print -u2 "Could not resolve the project version and build."
+  exit 1
+}
+version="${requested_version:-$project_version}"
+build="${requested_build:-$project_build}"
+if [[ "$version" != "$project_version" || "$build" != "$project_build" ]]; then
+  print -u2 "Requested $version ($build) differs from the project's $project_version ($project_build)."
+  print -u2 "Update MARKETING_VERSION and CURRENT_PROJECT_VERSION in the Xcode project instead."
+  exit 65
+fi
+archive="${BEDDY_ARCHIVE_PATH:-${temporary_base}/BeddyButler-${version}-${build}.xcarchive}"
+export_dir="${BEDDY_EXPORT_PATH:-${temporary_base}/BeddyButler-AppStore-${version}-${build}}"
 
 if [[ ! "$version" =~ '^[0-9]+([.][0-9]+){1,2}$' ]]; then
   print -u2 "The marketing version must contain two or three numeric components."
@@ -79,15 +113,16 @@ plutil -lint   "Beddy Butler/PrivacyInfo.xcprivacy"   "Beddy Butler/Beddy Butler
   exit 1
 }
 
-if rg -q 'Check for Updates|releases/latest' "Beddy Butler" README.md PRIVACY.md; then
+scan_rc=0
+rg -q 'Check for Updates|releases/latest' "Beddy Butler" README.md PRIVACY.md || scan_rc=$?
+if (( scan_rc == 0 )); then
   print -u2 "A non-App-Store update path remains in the product surface."
+  exit 1
+elif (( scan_rc != 1 )); then
+  print -u2 "The update-path scan failed with status $scan_rc."
   exit 1
 fi
 
-bundle_id="$(
-  xcodebuild -project "Beddy Butler.xcodeproj" -scheme "Beddy Butler"     -configuration Release -showBuildSettings 2>/dev/null |
-    awk -F ' = ' '/^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER = / {print $2; exit}'
-)"
 [[ -n "$bundle_id" ]] || { print -u2 "Could not resolve the app bundle identifier."; exit 1; }
 
 print "Mac App Store preflight passed"

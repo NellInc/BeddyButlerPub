@@ -13,7 +13,7 @@ Run xcodebuild test with these environment variables:
 
 ## Actual secondary menu
 
-Build a separate local Debug candidate with SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG. Launch its executable with:
+Build a separate local Debug candidate (the Debug configuration sets SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG). Launch its executable with:
 
 - BEDDY_MENU_PROOF_DIR=/tmp/beddy-menu-proof
 - BEDDY_BUTLER_DEFAULTS_SUITE=BeddyButler.MenuProof.UNIQUE_RUN_NAME

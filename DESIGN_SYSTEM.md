@@ -6,12 +6,13 @@ The editable design source lives in [Figma](https://www.figma.com/design/kdPKMw5
 
 The shipped interface remains native SwiftUI. The canonical implementation is:
 
-* `Beddy Butler/AppDelegate.swift` for the menu bar Tonight panel.
-* `Beddy Butler/PreferencesViewController.swift` for the Preferences window and shared night glass components.
+* `Beddy Butler/TonightPopoverView.swift` for the menu bar Tonight panel.
+* `Beddy Butler/PreferencesViewController.swift` for the Preferences window.
+* `Beddy Butler/BeddyDesign.swift` for the palette and shared night glass components.
 * `Beddy Butler/ButlerRigView.swift` for the deformable character mesh and personality motion.
 * `Website/assets/styles.css` for the corresponding website presentation.
 
-The shared visual language uses Night `#061126`, Glass `#172746`, Blue `#85C9FF`, Violet `#9A94FF`, Warm `#E8A870`, Success `#A5F0BD`, and Ink `#F7FAFF`.
+The colour tokens are defined in `BeddyPalette` in `BeddyDesign.swift` and mirrored, except Night Lifted and Success, in the `:root` block of `Website/assets/styles.css`: Night `#061126`, Night Deep `#030916`, Night Lifted `#07152C`, Ink `#F6F9FF`, Muted `#AEBBD0`, Faint `#7889A5`, Blue `#80C6FF`, Blue Bright `#A9DDFF`, Violet `#9EA9FF`, Warm `#F2B375`, Zombie `#A6D18A`, Success `#A6E2BE`, Glass `#0F1F3A` at 74% (62% on the web), Glass Strong `#0E1D36` at 90% (88% on the web), Line white at 12%, and Line Strong white at 20%.
 
 ## Artwork masters
 

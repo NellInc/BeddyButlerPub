@@ -9,17 +9,21 @@ for (const sample of samples) {
     say("This sample could not play. Check your connection, then try again.");
     if (retry) retry.hidden = false;
   };
+  // pause() while play() is pending rejects with AbortError; that is not a failure.
+  const playFailed = error => { if (error?.name !== "AbortError") failed(); };
   const toggle = document.getElementById(`${sample.id}-toggle`);
+  const persona = sample.id.replace("sample-", "");
+  const title = persona.charAt(0).toUpperCase() + persona.slice(1);
   const updateToggle = () => {
     if (!toggle) return;
     toggle.textContent = sample.paused ? "▶ Hear sample" : "Ⅱ Pause sample";
-    toggle.setAttribute("aria-label", `${sample.paused ? "Hear" : "Pause"} ${sample.id.replace("sample-", "")} sample`);
+    toggle.setAttribute("aria-label", `${sample.paused ? "Hear" : "Pause"} sample, ${title}`);
   };
   if (toggle) {
     toggle.hidden = false;
     sample.hidden = true;
     toggle.addEventListener("click", () => {
-      if (sample.paused) sample.play().catch(failed);
+      if (sample.paused) sample.play().catch(playFailed);
       else sample.pause();
     });
     for (const event of ["play", "pause", "ended", "error"]) sample.addEventListener(event, updateToggle);
@@ -38,7 +42,7 @@ for (const sample of samples) {
   if (retry) retry.addEventListener("click", () => {
     say("Loading sample…");
     sample.load();
-    sample.play().catch(failed);
+    sample.play().catch(playFailed);
   });
 }
 const pauseSamples = () => samples.forEach(sample => sample.pause());
