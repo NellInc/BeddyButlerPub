@@ -1,0 +1,11 @@
+# Beddy Butler
+
+> Beddy Butler is a free native macOS menu bar app that provides bedtime reminders with configurable schedules, voice personalities, and visual nudges.
+
+## Product
+
+- [Home](https://www.beddybutler.com/): Features, scheduling options, voice personalities, and the Mac App Store download.
+- [Accessibility](https://www.beddybutler.com/accessibility/): VoiceOver, keyboard access, motion and transparency preferences, and reminder modes.
+- [Privacy](https://www.beddybutler.com/privacy/): Local storage and the app's data collection policy.
+- [Support](https://www.beddybutler.com/support/): Help with setup, schedules, reminders, and troubleshooting.
+- [Press kit](https://www.beddybutler.com/press/): Product description, credits, screenshots, and artwork.
