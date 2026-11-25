@@ -165,6 +165,7 @@ final class LocalNotificationManager: NSObject, ObservableObject, VisualNotifica
             content.body = "A silent bedtime reminder is waiting in the menu bar."
         }
         content.categoryIdentifier = Self.categoryIdentifier
+        content.threadIdentifier = Self.notificationIdentifier
         content.sound = nil
 
         center.add(

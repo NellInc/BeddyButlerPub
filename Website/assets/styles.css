@@ -64,7 +64,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   color: #061126;
   background: white;
   border-radius: 10px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
   transform: translateY(-150%);
+  transition: transform .18s ease;
 }
 .skip-link:focus { transform: translateY(0); }
 
@@ -425,8 +429,9 @@ footer > p { text-align:right; }
 .persona-card > p:not(.persona-level) { margin: 0; font-size: 14px; color: var(--muted); }
 .sample-player { margin-top: 22px; min-width: 0; }
 .sample-player audio { width: 100%; }
-.sample-toggle, .sample-retry { padding: 11px 18px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--glass); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.sample-toggle, .sample-retry { padding: 11px 18px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--glass); color: var(--ink); font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; transition: background .2s ease, border-color .2s ease; }
 .sample-toggle:hover, .sample-retry:hover { background: rgba(170,216,255,.12); }
+.sample-toggle[aria-pressed="true"] { border-color: var(--blue); background: rgba(128, 198, 255, .18); }
 .sample-toggle:focus-visible, .sample-retry:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
 .sample-player [hidden] { display: none; }
 .sample-status { display: block; font-size: 12px; color: var(--muted); }

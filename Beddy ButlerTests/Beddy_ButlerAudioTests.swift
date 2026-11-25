@@ -97,6 +97,7 @@ final class BeddyButlerAudioTests: XCTestCase {
             URL(fileURLWithPath: "/tmp/Nell - Shy.01.mp3"),
             URL(fileURLWithPath: "/tmp/Nell - Insistent.01.mp3"),
             URL(fileURLWithPath: "/tmp/Nell - Zombie.01.mp3"),
+            URL(fileURLWithPath: "/tmp/Nell - Shy.notes.txt"),
             URL(fileURLWithPath: "/tmp/readme.txt"),
         ]
 

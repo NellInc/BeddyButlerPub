@@ -72,7 +72,10 @@ struct AudioLibrary {
 
     static func clips(for personality: ButlerPersonality, among urls: [URL]) -> [URL] {
         urls
-            .filter { $0.lastPathComponent.localizedCaseInsensitiveContains(personality.title) }
+            .filter {
+                $0.pathExtension.caseInsensitiveCompare("mp3") == .orderedSame
+                    && $0.lastPathComponent.localizedCaseInsensitiveContains(personality.title)
+            }
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 }

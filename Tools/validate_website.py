@@ -40,6 +40,7 @@ class PageParser(HTMLParser):
         self.has_language = False
         self.csp: list[str] = []
         self.inline_scripts = 0
+        self.inline_styles = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = dict(attrs)
@@ -66,6 +67,8 @@ class PageParser(HTMLParser):
             self.csp.append(values.get("content") or "")
         if any(name.startswith("on") for name in values):
             self.inline_scripts += 1
+        if tag == "style" or "style" in values:
+            self.inline_styles += 1
         if tag == "source" and values.get("srcset"):
             self.resources.extend(
                 candidate.strip().split()[0]
@@ -255,6 +258,11 @@ def main() -> int:
                 f"{rel}: {parser.inline_scripts} inline executable script(s) "
                 "would be blocked by the Content-Security-Policy"
             )
+        if parser.inline_styles:
+            errors.append(
+                f"{rel}: {parser.inline_styles} inline style element(s) or attribute(s) "
+                "would be blocked by the Content-Security-Policy"
+            )
         duplicates = sorted(
             {value for value in parser.ids if parser.ids.count(value) > 1}
         )
@@ -323,6 +331,13 @@ def main() -> int:
             continue
         if asset.resolve() not in referenced_assets:
             errors.append(f"Unreferenced website asset: {asset.relative_to(ROOT)}")
+    for asset in sorted(avatar_rig_dir.rglob("*")):
+        if (
+            asset.is_file()
+            and asset.resolve() not in referenced_assets
+            and asset.resolve() not in internal_pages
+        ):
+            errors.append(f"Unreferenced avatar-rig asset: {asset.relative_to(ROOT)}")
 
     sitemap = ET.parse(SITE / "sitemap.xml")
     namespace = {"sitemap": "http://www.sitemaps.org/schemas/sitemap/0.9"}

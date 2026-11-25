@@ -351,6 +351,11 @@ struct PreferencesView: View {
             .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
                 timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
             }
+            .onChange(of: settings.tonightOverrideDate) { updatedDate in
+                if updatedDate == nil {
+                    showingTonightOverride = false
+                }
+            }
         }
     }
 
@@ -521,7 +526,13 @@ struct PreferencesView: View {
 
             Button("Start Beddy Butler") {
                 settings.completeOnboarding()
-                scheduler.recalculate()
+                if let nextNudge = scheduler.nextNudge {
+                    AccessibilityAnnouncer.post(
+                        "Beddy Butler started. Next nudge: \(LocalizedScheduleText.dayAndTime(nextNudge))."
+                    )
+                } else {
+                    AccessibilityAnnouncer.post("Beddy Butler started.")
+                }
             }
             .primaryGlassButton()
             .controlSize(.large)
@@ -694,6 +705,15 @@ struct PreferencesView: View {
                             Text("This one-night window takes priority, even on a normally inactive night.")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
+
+                            if settings.tonightOverrideStartSeconds == settings.tonightOverrideBedSeconds {
+                                Label(
+                                    "Choose different start and bedtime hours for tonight.",
+                                    systemImage: "clock.badge.exclamationmark"
+                                )
+                                .font(.callout)
+                                .foregroundStyle(.orange)
+                            }
                         }
                     }
                     .padding(.top, 8)
@@ -766,6 +786,15 @@ struct PreferencesView: View {
                     }
 
                     Spacer()
+                }
+
+                if settings.startSeconds == settings.bedSeconds {
+                    Label(
+                        "Choose different start and bedtime hours.",
+                        systemImage: "clock.badge.exclamationmark"
+                    )
+                    .font(.callout)
+                    .foregroundStyle(.orange)
                 }
 
                 Divider()
@@ -968,6 +997,15 @@ struct PreferencesView: View {
                                 .accessibilityLabel("\(settings.alternateScheduleName) bedtime")
                                 .accessibilityIdentifier("schedule.alternate.bedtime")
                             }
+                        }
+
+                        if settings.alternateStartSeconds == settings.alternateBedSeconds {
+                            Label(
+                                "Choose different start and bedtime hours for \(settings.alternateScheduleName).",
+                                systemImage: "clock.badge.exclamationmark"
+                            )
+                            .font(.callout)
+                            .foregroundStyle(.orange)
                         }
                     }
                     .padding(12)
@@ -1215,7 +1253,9 @@ struct PreferencesView: View {
             Button("Restore Recommended Defaults", role: .destructive) {
                 notificationManager.setEnabled(false, settings: settings)
                 settings.restoreRecommendedDefaults()
+                showingTonightOverride = false
                 scheduler.recalculate()
+                AccessibilityAnnouncer.post("Recommended defaults restored.")
             }
             Button("Cancel", role: .cancel) {}
         } message: {

@@ -106,7 +106,10 @@ for required_path in "${required[@]}"; do
   [[ -f "$required_path" ]] || { print -u2 "Missing release requirement: $required_path"; exit 1; }
 done
 
-plutil -lint   "Beddy Butler/PrivacyInfo.xcprivacy"   "Beddy Butler/Beddy Butler.entitlements"   "Beddy Butler/Info.plist" >/dev/null
+plutil -lint \
+  "Beddy Butler/PrivacyInfo.xcprivacy" \
+  "Beddy Butler/Beddy Butler.entitlements" \
+  "Beddy Butler/Info.plist" >/dev/null
 
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.app-sandbox' "Beddy Butler/Beddy Butler.entitlements")" == "true" ]] || {
   print -u2 "App Sandbox must remain enabled for Mac App Store distribution."
@@ -146,7 +149,18 @@ chmod 700 "$temporary_root"
 trap 'rm -rf -- "$temporary_root"' EXIT
 export_options="$temporary_root/ExportOptions.plist"
 
-xcodebuild archive   -project "Beddy Butler.xcodeproj"   -scheme "Beddy Butler"   -configuration Release   -destination "generic/platform=macOS"   -archivePath "$archive"   -allowProvisioningUpdates   DEVELOPMENT_TEAM="$team_id"   CODE_SIGN_STYLE=Automatic   MARKETING_VERSION="$version"   CURRENT_PROJECT_VERSION="$build"
+xcodebuild archive \
+  -project "Beddy Butler.xcodeproj" \
+  -scheme "Beddy Butler" \
+  -configuration Release \
+  -destination "generic/platform=macOS" \
+  -archivePath "$archive" \
+  -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM="$team_id" \
+  CODE_SIGN_STYLE=Automatic \
+  SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
+  MARKETING_VERSION="$version" \
+  CURRENT_PROJECT_VERSION="$build"
 
 python3 Tools/validate_app_bundle.py \
   "$archive/Products/Applications/Beddy Butler.app" \
@@ -179,7 +193,11 @@ cat > "$export_options" <<PLIST
 PLIST
 
 mkdir -p "$export_dir"
-xcodebuild -exportArchive   -archivePath "$archive"   -exportPath "$export_dir"   -exportOptionsPlist "$export_options"   -allowProvisioningUpdates
+xcodebuild -exportArchive \
+  -archivePath "$archive" \
+  -exportPath "$export_dir" \
+  -exportOptionsPlist "$export_options" \
+  -allowProvisioningUpdates
 
 if [[ "$mode" == "--upload" ]]; then
   print "Uploaded Beddy Butler $version ($build) to App Store Connect."
