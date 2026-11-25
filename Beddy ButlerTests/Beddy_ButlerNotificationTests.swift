@@ -62,6 +62,25 @@ final class BeddyButlerNotificationTests: XCTestCase {
         XCTAssertEqual(center.removedDeliveredIdentifiers, [LocalNotificationManager.notificationIdentifier])
     }
 
+    func testNotificationActionsRouteExplicitlyAndIgnoreDismissal() {
+        let center = TestLocalNotificationCenter()
+        let manager = LocalNotificationManager(center: center)
+        var events: [String] = []
+        manager.onAcknowledge = { events.append("acknowledge") }
+        manager.onSnooze = { events.append("snooze") }
+        manager.onPause = { events.append("pause") }
+        manager.onOpen = { events.append("open") }
+
+        manager.handleNotificationAction(LocalNotificationManager.acknowledgeAction)
+        manager.handleNotificationAction(LocalNotificationManager.snoozeAction)
+        manager.handleNotificationAction(LocalNotificationManager.pauseAction)
+        manager.handleNotificationAction(UNNotificationDefaultActionIdentifier)
+        manager.handleNotificationAction(UNNotificationDismissActionIdentifier)
+        manager.handleNotificationAction("BEDDY_BUTLER_UNKNOWN_ACTION")
+
+        XCTAssertEqual(events, ["acknowledge", "snooze", "pause", "open"])
+    }
+
     private func makeDefaults() -> UserDefaults {
         makeIsolatedDefaults(prefix: "BeddyButler.NotificationTests")
     }

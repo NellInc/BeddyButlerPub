@@ -19,7 +19,7 @@ FONT_PATHS = [
     Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
 ]
 FONT = next(path for path in FONT_PATHS if path.exists())
-APP_ICON = ROOT / "Beddy Butler/Images.xcassets/AppIcon.appiconset/Mac_512pt@2x.png"
+APP_ICON = ROOT / "Artwork Sources/AppIcon/beddy-butler-2026-master-4k.png"
 MARGIN = 180
 # Preferences windows sit right-aligned at MARGIN, clear of the 1260 px text column.
 PREFERENCES_WIDTH = 1300
@@ -415,7 +415,7 @@ def add_character(
     y: int,
     size: tuple[int, int],
 ) -> None:
-    character = Image.open(ROOT / f"Website/assets/{name}-960.webp").convert("RGBA")
+    character = Image.open(ROOT / f"Artwork Sources/Characters/{name}-2026-4k.png").convert("RGBA")
     character.thumbnail(size, Image.Resampling.LANCZOS)
     shadow = Image.new("RGBA", character.size)
     shadow.alpha_composite(character)

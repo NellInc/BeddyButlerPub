@@ -138,6 +138,7 @@ final class AudioPlayer: AudioPlaying {
         category: "audio"
     )
     private let library: AudioLibrary
+    private var cachedClips: [ButlerPersonality: [URL]] = [:]
     private var player: AVAudioPlayer?
     private var clipSelector = AudioClipSelector()
     private static let fadeOutDuration: TimeInterval = 0.2
@@ -148,7 +149,16 @@ final class AudioPlayer: AudioPlaying {
 
     @discardableResult
     func play(_ personality: ButlerPersonality, volume: Double = 1) throws -> URL {
-        guard let clip = clipSelector.next(for: personality, from: library.clips(for: personality)) else {
+        let clips =
+            cachedClips[personality]
+            ?? {
+                let discovered = library.clips(for: personality)
+                if !discovered.isEmpty {
+                    cachedClips[personality] = discovered
+                }
+                return discovered
+            }()
+        guard let clip = clipSelector.next(for: personality, from: clips) else {
             throw AudioPlayerError.noClips(personality)
         }
 
@@ -158,7 +168,11 @@ final class AudioPlayer: AudioPlaying {
             guard nextPlayer.prepareToPlay(), nextPlayer.play() else {
                 throw AudioPlayerError.playbackRefused(clip)
             }
+            let previous = player
             player = nextPlayer
+            if let previous, previous.isPlaying {
+                fadeOutAndStop(previous)
+            }
             return clip
         } catch let error as AudioPlayerError {
             logger.error("Could not play \(clip.lastPathComponent, privacy: .public)")
@@ -174,6 +188,10 @@ final class AudioPlayer: AudioPlaying {
     func stop() {
         guard let fading = player else { return }
         player = nil
+        fadeOutAndStop(fading)
+    }
+
+    private func fadeOutAndStop(_ fading: AVAudioPlayer) {
         guard fading.isPlaying else { return }
         fading.setVolume(0, fadeDuration: Self.fadeOutDuration)
         Task { @MainActor in

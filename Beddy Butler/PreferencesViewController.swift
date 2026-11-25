@@ -78,7 +78,6 @@ final class PreferencesWindowController: NSWindowController {
             loginItemManager: loginItemManager,
             notificationManager: notificationManager
         )
-        let environment = ProcessInfo.processInfo.environment
         let hostingController = NSHostingController(rootView: content)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Beddy Butler Preferences"
@@ -87,11 +86,7 @@ final class PreferencesWindowController: NSWindowController {
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
-        if environment["BEDDY_BUTLER_APPEARANCE"] == "light" {
-            window.appearance = NSAppearance(named: .aqua)
-        } else {
-            window.appearance = NSAppearance(named: .darkAqua)
-        }
+        window.appearance = NSAppearance(named: .darkAqua)
         window.setContentSize(NSSize(width: 720, height: 800))
         window.minSize = NSSize(width: 640, height: 420)
         window.isReleasedWhenClosed = false
@@ -134,6 +129,7 @@ private struct AnimatedButlerArtwork: View {
     let personality: ButlerPersonality
     let presentation: Presentation
     let viewportHeight: CGFloat
+    var staticCapture = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isWithinViewport = true
@@ -177,14 +173,22 @@ private struct AnimatedButlerArtwork: View {
                         .strokeBorder(BeddyPalette.lineStrong, lineWidth: 1)
                 }
         case .preview:
-            ButlerRiggedView(
-                personality: personality,
-                motionEnabled: !reduceMotion && isWithinViewport,
-                isVisible: isWithinViewport,
-                contentMode: .fit,
-                intensity: 1
-            )
-            .frame(width: 144, height: 172)
+            if staticCapture, let image = NSImage(named: personality.rigAssetName) {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: 144, height: 172)
+            } else {
+                ButlerRiggedView(
+                    personality: personality,
+                    motionEnabled: !reduceMotion && isWithinViewport,
+                    isVisible: isWithinViewport,
+                    contentMode: .fit,
+                    intensity: 1
+                )
+                .frame(width: 144, height: 172)
+            }
         }
     }
 
@@ -264,6 +268,7 @@ struct PreferencesView: View {
     @State private var timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
     @State private var scrollViewportHeight: CGFloat = 800
     @State private var showingRestoreDefaultsConfirmation = false
+    @State private var showingTonightOverride: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -279,6 +284,7 @@ struct PreferencesView: View {
         self.loginItemManager = loginItemManager
         self.notificationManager = notificationManager
         self.captureAllSections = captureAllSections
+        _showingTonightOverride = State(initialValue: settings.tonightOverridePending())
     }
 
     @ViewBuilder
@@ -407,26 +413,53 @@ struct PreferencesView: View {
         }
     }
 
-    private func schedulePreview(offset: Int) -> String {
-        let calendar = Calendar.autoupdatingCurrent
-        guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: Date())) else {
+    static func schedulePreview(
+        offset: Int,
+        referenceDate: Date = Date(),
+        schedule: WeeklyBedtimeSchedule,
+        primaryName: String,
+        alternateName: String,
+        calendar: Calendar = .autoupdatingCurrent,
+        locale: Locale = .autoupdatingCurrent
+    ) -> String {
+        guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: referenceDate))
+        else {
             return ""
         }
         let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = locale
         formatter.setLocalizedDateFormatFromTemplate("EEE d MMM")
         let label = formatter.string(from: day)
-        let schedule = settings.weeklySchedule
         guard let times = schedule.times(for: day, calendar: calendar) else { return "\(label): no reminders" }
+        guard times.bed != times.start else { return "\(label): no valid window" }
         let name: String
         switch schedule.selection(for: day, calendar: calendar) {
         case .oneNightOverride: name = "Tonight’s adjustment"
-        case .alternate: name = settings.alternateScheduleName
-        default: name = settings.primaryScheduleName
+        case .alternate: name = alternateName
+        default: name = primaryName
         }
         let start = WallClockTime.date(for: times.start, relativeTo: day, calendar: calendar)
-        let end = WallClockTime.date(for: times.bed, relativeTo: day, calendar: calendar)
-        let suffix = times.bed < times.start ? " next day" : ""
-        return "\(label): \(name), \(LocalizedScheduleText.time(start)) to \(LocalizedScheduleText.time(end))\(suffix)"
+        let crossesMidnight = times.bed < times.start
+        let endDay =
+            crossesMidnight
+            ? (calendar.date(byAdding: .day, value: 1, to: day) ?? day)
+            : day
+        let end = WallClockTime.date(for: times.bed, relativeTo: endDay, calendar: calendar)
+        let suffix = crossesMidnight ? " next day" : ""
+        let startText = LocalizedScheduleText.time(start, locale: locale, timeZone: calendar.timeZone)
+        let endText = LocalizedScheduleText.time(end, locale: locale, timeZone: calendar.timeZone)
+        return "\(label): \(name), \(startText) to \(endText)\(suffix)"
+    }
+
+    private func schedulePreview(offset: Int) -> String {
+        Self.schedulePreview(
+            offset: offset,
+            schedule: settings.weeklySchedule,
+            primaryName: settings.primaryScheduleName,
+            alternateName: settings.alternateScheduleName
+        )
     }
 
     private var header: some View {
@@ -471,7 +504,7 @@ struct PreferencesView: View {
             tint: BeddyPalette.violet,
             emphasized: true
         ) {
-            Text("Set tonight's routine below. Beddy Butler saves changes instantly and waits in your menu bar.")
+            Text("Set tonight’s routine below. Beddy Butler saves changes instantly and waits in your menu bar.")
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 7) {
@@ -488,7 +521,6 @@ struct PreferencesView: View {
             }
             .primaryGlassButton()
             .controlSize(.large)
-            .keyboardShortcut(.defaultAction)
             .accessibilityLabel("Start Beddy Butler")
             .accessibilityIdentifier("onboarding.start")
             .accessibilityHint("Completes setup; settings can still be changed at any time")
@@ -507,10 +539,19 @@ struct PreferencesView: View {
                     Text(scheduleHeading)
                         .font(.title3.weight(.semibold))
                         .textSelection(.enabled)
-                    Text(scheduleDetail)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if captureAllSections {
+                        Text(scheduleDetail(relativeTo: Date()))
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        TimelineView(.periodic(from: .now, by: 60)) { context in
+                            Text(scheduleDetail(relativeTo: context.date))
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
 
                 HStack(spacing: 10) {
@@ -525,7 +566,17 @@ struct PreferencesView: View {
                         .accessibilityHint("Clears the persistent visual bedtime nudge")
                     }
 
-                    if settings.isMuted() {
+                    if scheduler.hasFinishedTonight {
+                        Button {
+                            scheduler.undoFinishTonight()
+                        } label: {
+                            Label("Undo Finish", systemImage: "arrow.uturn.backward")
+                        }
+                        .primaryGlassButton()
+                        .accessibilityLabel("Undo finish")
+                        .accessibilityIdentifier("tonight.undoFinish")
+                        .help("Resume reminders and restore any waiting menu bar badge.")
+                    } else if settings.isMuted() {
                         Button {
                             scheduler.resumeNudges()
                         } label: {
@@ -536,6 +587,12 @@ struct PreferencesView: View {
                         .accessibilityIdentifier("tonight.resume")
 
                         if scheduler.isSnoozed {
+                            Button("I’m heading to bed") {
+                                scheduler.finishTonight()
+                            }
+                            .accessibilityIdentifier("tonight.finishTonight")
+                            .help("Clear reminders and finish for tonight.")
+
                             Button("Pause Tonight") {
                                 scheduler.muteForCurrentWindow()
                             }
@@ -554,6 +611,14 @@ struct PreferencesView: View {
                         .accessibilityHint(snoozeHelp)
                         .help(snoozeHelp)
 
+                        if scheduler.canSnooze {
+                            Button("I’m heading to bed") {
+                                scheduler.finishTonight()
+                            }
+                            .accessibilityIdentifier("tonight.finishTonight")
+                            .help("Clear reminders and finish for tonight.")
+                        }
+
                         Button("Pause Tonight") {
                             scheduler.muteForCurrentWindow()
                         }
@@ -564,7 +629,7 @@ struct PreferencesView: View {
                     }
                 }
 
-                DisclosureGroup("One-night adjustment") {
+                DisclosureGroup("One-night adjustment", isExpanded: $showingTonightOverride) {
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("Use different times tonight", isOn: tonightOverrideBinding)
                             .accessibilityIdentifier("tonight.override.enabled")
@@ -664,6 +729,7 @@ struct PreferencesView: View {
                         )
                         .labelsHidden()
                         .accessibilityLabel("Begin nudging")
+                        .accessibilityIdentifier("schedule.primary.start")
                     }
 
                     Image(systemName: "arrow.right")
@@ -684,6 +750,7 @@ struct PreferencesView: View {
                         )
                         .labelsHidden()
                         .accessibilityLabel("Bedtime")
+                        .accessibilityIdentifier("schedule.primary.bedtime")
                     }
 
                     Spacer()
@@ -696,6 +763,7 @@ struct PreferencesView: View {
                     Slider(value: frequencyBinding, in: 1...30, step: 1)
                         .accessibilityLabel("Base nudge frequency")
                         .accessibilityValue("\(Int(settings.frequencyMinutes)) minutes")
+                        .accessibilityIdentifier("schedule.frequency")
                     Text("\(Int(settings.frequencyMinutes))–\(Int(ceil(settings.frequencyMinutes * 1.7))) min")
                         .monospacedDigit()
                         .frame(minWidth: 80, alignment: .trailing)
@@ -822,11 +890,13 @@ struct PreferencesView: View {
                                         value: rotationPrimaryDaysBinding,
                                         in: 1...28
                                     )
+                                    .accessibilityIdentifier("schedule.rotation.primaryDays")
                                     Stepper(
                                         "\(settings.alternateScheduleName): \(Self.dayCount(settings.rotationAlternateDays))",
                                         value: rotationAlternateDaysBinding,
                                         in: 1...28
                                     )
+                                    .accessibilityIdentifier("schedule.rotation.alternateDays")
                                 }
 
                                 DatePicker(
@@ -948,7 +1018,8 @@ struct PreferencesView: View {
                         AnimatedButlerArtwork(
                             personality: settings.personality,
                             presentation: .preview,
-                            viewportHeight: scrollViewportHeight
+                            viewportHeight: scrollViewportHeight,
+                            staticCapture: captureAllSections
                         )
                     } else {
                         Image(systemName: "bell.badge.fill")
@@ -1039,13 +1110,13 @@ struct PreferencesView: View {
                 Picker(
                     "Firmest reminder",
                     selection: Binding(
-                        get: { settings.maximumPersonality },
+                        get: { settings.effectiveMaximumPersonality },
                         set: { settings.updateMaximumPersonality($0) }
                     )
                 ) {
-                    ForEach(ButlerPersonality.allCases) { Text($0.title).tag($0) }
+                    ForEach(availableMaximumPersonalities) { Text($0.title).tag($0) }
                 }
-                .disabled(!settings.progressiveMode)
+                .disabled(!settings.progressiveMode || availableMaximumPersonalities.count <= 1)
                 .accessibilityIdentifier("behavior.maximumPersonality")
 
                 if settings.progressiveMode {
@@ -1187,8 +1258,13 @@ struct PreferencesView: View {
         settings.isMuted() && !scheduler.hasFinishedTonight
     }
 
+    private var availableMaximumPersonalities: [ButlerPersonality] {
+        ButlerPersonality.allCases.filter { $0.capped(at: settings.personality) == settings.personality }
+    }
+
     private var headerStatusTitle: String {
         if !settings.hasActivatedSchedule { return "Awaiting setup" }
+        if scheduler.hasFinishedTonight { return "Finished" }
         if scheduler.visualNudgePending {
             return "Nudge waiting"
         }
@@ -1203,6 +1279,7 @@ struct PreferencesView: View {
 
     private var headerStatusSymbol: String {
         if !settings.hasActivatedSchedule { return "clock" }
+        if scheduler.hasFinishedTonight { return "moon.zzz.fill" }
         if scheduler.visualNudgePending {
             return "bell.badge.fill"
         }
@@ -1217,6 +1294,7 @@ struct PreferencesView: View {
 
     private var headerStatusTint: Color {
         if !settings.hasActivatedSchedule { return BeddyPalette.blueBright }
+        if scheduler.hasFinishedTonight { return BeddyPalette.violet }
         if scheduler.visualNudgePending {
             return BeddyPalette.warm
         }
@@ -1236,6 +1314,7 @@ struct PreferencesView: View {
 
     private var scheduleHeading: String {
         if !settings.hasActivatedSchedule { return "Awaiting setup" }
+        if scheduler.hasFinishedTonight { return "Good night." }
         if scheduler.visualNudgePending {
             return
                 scheduler.pendingVisualNudgeCount == 1
@@ -1251,8 +1330,14 @@ struct PreferencesView: View {
         return "Waiting for a valid bedtime window"
     }
 
-    private var scheduleDetail: String {
+    private func scheduleDetail(relativeTo referenceDate: Date) -> String {
         if !settings.hasActivatedSchedule { return "Press Start Beddy Butler when ready." }
+        if scheduler.hasFinishedTonight {
+            if let nextNudge = scheduler.nextNudge {
+                return "Next reminder: \(LocalizedScheduleText.dayAndTime(nextNudge))."
+            }
+            return "No further reminders scheduled."
+        }
         if scheduler.visualNudgePending {
             return "The menu-bar badge and count remain until you acknowledge them."
         }
@@ -1262,7 +1347,7 @@ struct PreferencesView: View {
         guard let nextNudge = scheduler.nextNudge else {
             return "Adjust the bedtime window below to resume scheduling."
         }
-        let relative = RelativeDateTimeFormatter().localizedString(for: nextNudge, relativeTo: Date())
+        let relative = RelativeDateTimeFormatter().localizedString(for: nextNudge, relativeTo: referenceDate)
         let presentation =
             switch settings.nudgeDelivery {
             case .sound:
@@ -1328,7 +1413,7 @@ struct PreferencesView: View {
         }
         return scheduler.canSnooze || scheduler.isSnoozed
             ? "Your bedtime window is active."
-            : "Waiting for tonight's bedtime window."
+            : "Waiting for tonight’s bedtime window."
     }
 
     /// Receipts describing a state that has since ended (a pause that expired or was
@@ -1364,7 +1449,7 @@ struct PreferencesView: View {
     private func timeBinding(seconds: Int, update: @escaping (Int) -> Void) -> Binding<Date> {
         Binding(
             get: { WallClockTime.date(for: seconds) },
-            set: { update(WallClockTime.seconds(from: $0)) }
+            set: { update((WallClockTime.seconds(from: $0) / 60) * 60) }
         )
     }
 

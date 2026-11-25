@@ -93,11 +93,66 @@ final class BeddyButlerWallClockTests: XCTestCase {
     func testExternalWebsiteAndFeedbackLinksUseSecureURLs() throws {
         let website = try XCTUnwrap(ExternalLinks.website)
         let feedback = try XCTUnwrap(ExternalLinks.feedback)
+        let source = try XCTUnwrap(ExternalLinks.source)
 
         XCTAssertEqual(website.scheme, "https")
         XCTAssertEqual(feedback.scheme, "https")
+        XCTAssertEqual(source.scheme, "https")
         XCTAssertEqual(website.host, "www.beddybutler.com")
         XCTAssertEqual(feedback.host, "github.com")
+        XCTAssertEqual(source.host, "github.com")
+    }
+
+    @MainActor
+    func testSchedulePreviewHandlesEqualTimesAndCrossMidnightDST() throws {
+        var london = Calendar(identifier: .gregorian)
+        london.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/London"))
+        let equalSchedule = WeeklyBedtimeSchedule(
+            startSeconds: 22 * 3_600,
+            bedSeconds: 22 * 3_600,
+            activeWeekdays: Set(1...7),
+            alternateScheduleEnabled: false,
+            alternateWeekdays: [],
+            alternateStartSeconds: 0,
+            alternateBedSeconds: 0
+        )
+        let summer = try XCTUnwrap(
+            london.date(from: DateComponents(year: 2026, month: 7, day: 21, hour: 12))
+        )
+        let equalPreview = PreferencesView.schedulePreview(
+            offset: 0,
+            referenceDate: summer,
+            schedule: equalSchedule,
+            primaryName: "Regular",
+            alternateName: "Alternate",
+            calendar: london,
+            locale: Locale(identifier: "en_GB")
+        )
+        XCTAssertTrue(equalPreview.hasSuffix(": no valid window"), equalPreview)
+
+        // 28 March 2026 crosses midnight into UK spring-forward day (29 March 2026, 01:00 -> 02:00).
+        let springEve = try XCTUnwrap(
+            london.date(from: DateComponents(year: 2026, month: 3, day: 28, hour: 12))
+        )
+        let crossMidnightSchedule = WeeklyBedtimeSchedule(
+            startSeconds: 23 * 3_600,
+            bedSeconds: 1 * 3_600 + 30 * 60,
+            activeWeekdays: Set(1...7),
+            alternateScheduleEnabled: false,
+            alternateWeekdays: [],
+            alternateStartSeconds: 0,
+            alternateBedSeconds: 0
+        )
+        let dstPreview = PreferencesView.schedulePreview(
+            offset: 0,
+            referenceDate: springEve,
+            schedule: crossMidnightSchedule,
+            primaryName: "Regular",
+            alternateName: "Alternate",
+            calendar: london,
+            locale: Locale(identifier: "en_GB")
+        )
+        XCTAssertTrue(dstPreview.contains("23:00 to 02:30 next day"), dstPreview)
     }
 
     @MainActor
@@ -188,7 +243,7 @@ final class BeddyButlerWallClockTests: XCTestCase {
             notificationManager: LocalNotificationManager()
         )
         defer {
-            scheduler.timer?.invalidate()
+            scheduler.invalidateTimers()
             controller.close()
         }
 
@@ -236,7 +291,7 @@ final class BeddyButlerWallClockTests: XCTestCase {
             notificationManager: LocalNotificationManager()
         )
         defer {
-            scheduler.timer?.invalidate()
+            scheduler.invalidateTimers()
             controller.close()
         }
 

@@ -211,17 +211,24 @@ final class LocalNotificationManager: NSObject, ObservableObject, VisualNotifica
     ) async {
         let actionIdentifier = response.actionIdentifier
         await MainActor.run { [weak self] in
-            guard let self else { return }
-            switch actionIdentifier {
-            case Self.acknowledgeAction:
-                onAcknowledge?()
-            case Self.snoozeAction:
-                onSnooze?()
-            case Self.pauseAction:
-                onPause?()
-            default:
-                onOpen?()
-            }
+            self?.handleNotificationAction(actionIdentifier)
+        }
+    }
+
+    func handleNotificationAction(_ actionIdentifier: String) {
+        switch actionIdentifier {
+        case Self.acknowledgeAction:
+            onAcknowledge?()
+        case Self.snoozeAction:
+            onSnooze?()
+        case Self.pauseAction:
+            onPause?()
+        case UNNotificationDefaultActionIdentifier:
+            onOpen?()
+        case UNNotificationDismissActionIdentifier:
+            break
+        default:
+            break
         }
     }
 

@@ -2,12 +2,12 @@
 const avatar=typeof location==='undefined'?'insistent':new URLSearchParams(location.search).get('avatar')||'insistent';
 const website=typeof location!=='undefined'&&new URLSearchParams(location.search).has('website');
 const config=typeof CHARACTER_RIGS==='undefined'?null:CHARACTER_RIGS[avatar];
-const W=960,H=config?.height||1210, canvas=document.querySelector('#rig'), ctx=canvas.getContext('2d');
+const W=960,H=config?.height||1210, canvas=document.querySelector('#rig'), ctx=website?null:canvas.getContext('2d');
 const controls=Object.fromEntries(['play','amount','phase','bones','rest'].map(id=>[id,document.getElementById(id)]));
-
-const image=new Image();image.src=`../../assets/${config?avatar:'insistent'}-960.webp`;
-for(const id of ['rig','original'])document.querySelector('#'+id).height=H;
-if(config)document.querySelector('h1').textContent=`${avatar[0].toUpperCase()+avatar.slice(1)}: limb rig experiment`;
+const assetBase=canvas.dataset?.assetBase||'..';
+const image=new Image();image.src=`${assetBase}/${config?avatar:'insistent'}-960.webp`;
+canvas.height=H;if(!website)document.querySelector('#original').height=H;
+if(config&&!website)document.querySelector('h1').textContent=`${avatar[0].toUpperCase()+avatar.slice(1)}: limb rig experiment`;
 // Parent-first skeleton, expressed in original artwork coordinates.
 const joints=[
  {name:'body',p:[550,690],parent:-1},
@@ -124,7 +124,7 @@ function weights(p){
  return normalized;
 }
 const cols=96,rows=Math.ceil(H/10),vertices=[],triangles=[],vertexMap=new Map();
-function vertex(x,y){const key=`${x.toFixed(5)},${y.toFixed(5)}`;if(vertexMap.has(key))return vertexMap.get(key);const index=vertices.length,p=[x,y];vertices.push({p,w:weights(p)});vertexMap.set(key,index);return index}
+function vertex(x,y){const key=`${x.toFixed(5)},${y.toFixed(5)}`;if(vertexMap.has(key))return vertexMap.get(key);const index=vertices.length,p=[x,y],w=weights(p),sparse=[];for(let i=0;i<w.length;i++)if(w[i]>=1e-12)sparse.push(i,w[i]);vertices.push({p,w,sparse});vertexMap.set(key,index);return index}
 for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
  const left=x*W/cols,top=y*H/rows,right=(x+1)*W/cols,bottom=(y+1)*H/rows;
  const hand=config?config.hands.some(box=>left<box[2]+20&&right>box[0]-20&&top<box[3]+20&&bottom>box[1]-20):(left<280&&right>120&&top<360&&bottom>210)||(left<410&&right>240&&top<730&&bottom>590);
@@ -193,25 +193,45 @@ function triangle(src,dst){const [a,b,c]=src,[A,B,C]=dst;
  const bb=((B[1]-A[1])*s-(C[1]-A[1])*v)/det,dd=((C[1]-A[1])*u-(B[1]-A[1])*r)/det;
  ctx.save();ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.lineTo(...C);ctx.closePath();ctx.clip();ctx.setTransform(aa,bb,cc,dd,A[0]-aa*a[0]-cc*a[1],A[1]-bb*a[0]-dd*a[1]);ctx.drawImage(image,0,0,W,H);ctx.restore();
 }
+const warpedFlat=new Float32Array(vertices.length*2);
+function skinIntoFlat(ms){
+ for(let vIndex=0;vIndex<vertices.length;vIndex++){
+  const v=vertices[vIndex],px=v.p[0],py=v.p[1],sparse=v.sparse;
+  let x=0,y=0;
+  for(let k=0;k<sparse.length;k+=2){
+   const m=ms[sparse[k]],w=sparse[k+1];
+   x+=w*(m.c*px-m.s*py+m.x);y+=w*(m.s*px+m.c*py+m.y);
+  }
+  warpedFlat[vIndex*2]=x;warpedFlat[vIndex*2+1]=y;
+ }
+}
 function render(){const phase=phaseValue,amount=Number(controls.amount.value),ms=pose(phase,amount);
- ctx.clearRect(0,0,W,H);const warped=vertices.map(v=>{let x=0,y=0;for(let i=0;i<v.w.length;i++){const w=v.w[i];if(w<1e-12)continue;const m=ms[i];x+=w*(m.c*v.p[0]-m.s*v.p[1]+m.x);y+=w*(m.s*v.p[0]+m.c*v.p[1]+m.y)}return [x,y]});
- if(amount===0)ctx.drawImage(image,0,0,W,H);else if(gpu){gpu.draw(warped);ctx.drawImage(gpu.surface,0,0)}else for(const ids of triangles)triangle(ids.map(i=>vertices[i].p),ids.map(i=>warped[i]));
+ skinIntoFlat(ms);
+ if(gpu&&gpu.direct){gpu.draw(warpedFlat);return}
+ ctx.clearRect(0,0,W,H);
+ if(amount===0)ctx.drawImage(image,0,0,W,H);else if(gpu){gpu.draw(warpedFlat);ctx.drawImage(gpu.surface,0,0)}else{
+  const warped=vertices.map((_,i)=>[warpedFlat[i*2],warpedFlat[i*2+1]]);
+  for(const ids of triangles)triangle(ids.map(i=>vertices[i].p),ids.map(i=>warped[i]));
+ }
  if(!website){const hand=document.querySelector('#hand-rig').getContext('2d');hand.clearRect(0,0,300,200);hand.drawImage(canvas,...(config?.handCrop||[95,210,225,150]),0,0,300,200);}
  if(controls.bones.checked){ctx.strokeStyle='#9be3ff';ctx.fillStyle='#102438';ctx.lineWidth=3;joints.forEach((j,i)=>{const p=apply(ms[i],j.p);if(j.parent>=0){ctx.beginPath();ctx.moveTo(...apply(ms[j.parent],joints[j.parent].p));ctx.lineTo(...p);ctx.stroke()}ctx.beginPath();ctx.arc(...p,7,0,Math.PI*2);ctx.fill();ctx.stroke()})}
 }
-let gpu=null,phaseValue=0;
+let gpu=null,phaseValue=0,rafId=0;
 let running=!matchMedia('(prefers-reduced-motion: reduce)').matches,ready=false,last=0;
-function setRunning(v){running=v;last=0;controls.play.textContent=v?'Pause':'Play'}setRunning(running);
-controls.play.onclick=()=>setRunning(!running);controls.rest.onclick=()=>{setRunning(false);controls.amount.value=0;render()};controls.phase.oninput=()=>{setRunning(false);phaseValue=Number(controls.phase.value);render()};controls.amount.oninput=controls.bones.onchange=()=>ready&&render();
-image.onload=()=>{gpu=typeof createMeshRenderer==='function'?createMeshRenderer(W,H,image,vertices,triangles):null;canvas.dataset.renderer=gpu?'webgl':'canvas2d';if(website&&!gpu)return;if(website)gpu.surface.addEventListener('webglcontextlost',()=>parent.postMessage({type:'butler-unavailable'},location.origin));ready=true;document.querySelector('#hand-original').getContext('2d').drawImage(image,...(config?.handCrop||[95,210,225,150]),0,0,300,200);document.querySelector('#original').getContext('2d').drawImage(image,0,0,W,H);render();if(website)parent.postMessage({type:'butler-ready'},location.origin)};
-image.onerror=()=>{document.querySelector('p').textContent='Artwork could not load.'};
+function scheduleFrame(){if(!rafId&&ready&&running&&!document.hidden)rafId=requestAnimationFrame(tick)}
+function setRunning(v){running=v;last=0;controls.play.textContent=v?'Pause':'Play';if(v)scheduleFrame()}setRunning(running);
+controls.play.onclick=()=>setRunning(!running);controls.rest.onclick=()=>{setRunning(false);controls.amount.value=0;if(ready)render()};controls.phase.oninput=()=>{setRunning(false);phaseValue=Number(controls.phase.value);if(ready)render()};controls.amount.oninput=controls.bones.onchange=()=>ready&&render();
+image.onload=()=>{gpu=typeof createMeshRenderer==='function'?createMeshRenderer(W,H,image,vertices,triangles,website?canvas:null):null;if(canvas.dataset)canvas.dataset.renderer=gpu?'webgl':'canvas2d';if(website&&!gpu){parent.postMessage({type:'butler-unavailable'},location.origin);return}if(website)gpu.surface.addEventListener('webglcontextlost',()=>parent.postMessage({type:'butler-unavailable'},location.origin));ready=true;if(!website){document.querySelector('#hand-original').getContext('2d').drawImage(image,...(config?.handCrop||[95,210,225,150]),0,0,300,200);document.querySelector('#original').getContext('2d').drawImage(image,0,0,W,H)}render();if(website)parent.postMessage({type:'butler-ready'},location.origin);scheduleFrame()};
+image.onerror=()=>{if(website)parent.postMessage({type:'butler-unavailable'},location.origin);else document.querySelector('p').textContent='Artwork could not load.'};
 function tick(now){
+ rafId=0;
  if(ready&&running&&!document.hidden){
   if(last)phaseValue=(phaseValue+(now-last)/((config?.cycle||8)*1000))%1;
   last=now;controls.phase.value=phaseValue;render();
+  scheduleFrame();
  }else last=0;
- requestAnimationFrame(tick);
-}requestAnimationFrame(tick);
+}
+if(typeof document.addEventListener==='function')document.addEventListener('visibilitychange',()=>{if(document.hidden)last=0;else scheduleFrame()});
 // Deterministic geometry checks, available without starting playback.
 window.rigCheck=()=>{let error=0;const ms=pose(0,0);for(const v of vertices)for(const m of ms){const p=apply(m,v.p);error=Math.max(error,Math.hypot(p[0]-v.p[0],p[1]-v.p[1]))}return {vertices:vertices.length,joints:joints.length,restError:error,normalizedWeights:vertices.every(v=>Math.abs(v.w.reduce((a,b)=>a+b,0)-1)<1e-9)}};
 

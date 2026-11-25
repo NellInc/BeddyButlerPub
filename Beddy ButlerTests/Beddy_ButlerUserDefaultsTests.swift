@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import XCTest
 
@@ -611,5 +612,24 @@ final class BeddyButlerUserDefaultsTests: XCTestCase {
 
         XCTAssertFalse(settings.tonightOverrideIsActive(at: evening, calendar: calendar))
         XCTAssertTrue(settings.tonightOverridePending(at: evening, calendar: calendar))
+    }
+
+    @MainActor
+    func testUpdatingMaximumPersonalityToSameValueDoesNotPostChange() {
+        let defaults = freshDefaults()
+        let settings = AppSettings(defaults: defaults)
+        var posts = 0
+        let subscription = NotificationCenter.default
+            .publisher(for: .beddySettingsDidChange, object: settings)
+            .sink { _ in posts += 1 }
+        defer { subscription.cancel() }
+
+        settings.updateMaximumPersonality(settings.maximumPersonality)
+        XCTAssertEqual(posts, 0)
+
+        settings.updateMaximumPersonality(.insistent)
+        XCTAssertEqual(posts, 1)
+        settings.updateMaximumPersonality(.insistent)
+        XCTAssertEqual(posts, 1)
     }
 }

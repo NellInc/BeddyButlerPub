@@ -6,7 +6,7 @@ The **Beddy Butler Website** command opens beddybutler.com in the default browse
 
 Voice recordings are bundled with the application and play locally. Beddy Butler does not request microphone access.
 
-Visual nudges use the local menu-bar icon and preferences window. They remain visible across relaunches until acknowledged. Users can optionally enable silent local Notification Center alerts; Beddy Butler requests macOS notification permission only when that option is enabled. These alerts are created locally and do not contact a notification server.
+Visual nudges use the local menu-bar icon and preferences window. They remain visible across relaunches until acknowledged. Users can optionally enable silent local Notification Centre alerts; Beddy Butler requests macOS notification permission only when that option is enabled. These alerts are created locally and do not contact a notification server.
 
 ## Release verification
 

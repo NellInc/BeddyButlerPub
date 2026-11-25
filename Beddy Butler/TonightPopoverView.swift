@@ -11,9 +11,16 @@ struct TonightPopoverView: View {
     let preview: () -> Void
     let acknowledge: () -> Void
     let snooze: () -> Void
+    let finishTonight: () -> Void
+    let undoFinishTonight: () -> Void
     let togglePause: () -> Void
     let pauseTonight: () -> Void
     let quit: () -> Void
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var strongEdges: Bool { reduceTransparency || contrast == .increased }
 
     var body: some View {
         ZStack {
@@ -25,7 +32,7 @@ struct TonightPopoverView: View {
                 scheduleSummary
                 if scheduler.hasFinishedTonight {
                     Button {
-                        scheduler.undoFinishTonight()
+                        undoFinishTonight()
                     } label: {
                         Text("Undo finish")
                             .frame(maxWidth: .infinity)
@@ -89,14 +96,23 @@ struct TonightPopoverView: View {
                 Circle()
                     .fill(statusColor)
                     .frame(width: 6, height: 6)
-                    .shadow(color: statusColor, radius: 4)
+                    .shadow(color: reduceTransparency ? .clear : statusColor, radius: 4)
                 Text(statusTitle)
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(statusTextColor)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(statusColor.opacity(0.12), in: Capsule())
+            .background(
+                reduceTransparency ? BeddyPalette.night : statusColor.opacity(0.12),
+                in: Capsule()
+            )
+            .overlay {
+                if strongEdges {
+                    Capsule()
+                        .strokeBorder(BeddyPalette.lineStrong, lineWidth: 1)
+                }
+            }
             .accessibilityLabel("Status: \(statusTitle)")
         }
     }
@@ -105,24 +121,24 @@ struct TonightPopoverView: View {
         HStack(spacing: 15) {
             ZStack {
                 LinearGradient(
-                    colors: [BeddyPalette.blueBright, Color(red: 100 / 255, green: 143 / 255, blue: 228 / 255)],
+                    colors: [BeddyPalette.blueBright, BeddyPalette.orbBottom],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
                 Image(systemName: nextCardSymbol)
                     .font(.system(size: 25, weight: .medium))
-                    .foregroundStyle(Color(red: 16 / 255, green: 37 / 255, blue: 66 / 255))
+                    .foregroundStyle(BeddyPalette.orbGlyph)
             }
             .frame(width: 52, height: 52)
             .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-            .shadow(color: BeddyPalette.blue.opacity(0.27), radius: 13, y: 7)
+            .shadow(color: reduceTransparency ? .clear : BeddyPalette.blue.opacity(0.27), radius: 13, y: 7)
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(nextCardEyebrow)
                     .font(.system(size: 12, weight: .bold))
                     .tracking(1.2)
-                    .foregroundStyle(Color(red: 145 / 255, green: 170 / 255, blue: 200 / 255))
+                    .foregroundStyle(BeddyPalette.cardEyebrow)
                 Text(nextCardValue)
                     .font(.system(size: 24, weight: .bold, design: .rounded))
                     .monospacedDigit()
@@ -145,16 +161,21 @@ struct TonightPopoverView: View {
         }
         .padding(17)
         .background {
-            LinearGradient(
-                colors: [BeddyPalette.blue.opacity(0.18), Color.white.opacity(0.04)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+            if reduceTransparency {
+                RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    .fill(BeddyPalette.night)
+            } else {
+                LinearGradient(
+                    colors: [BeddyPalette.blue.opacity(0.18), Color.white.opacity(0.04)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+            }
         }
         .overlay {
             RoundedRectangle(cornerRadius: 17, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                .strokeBorder(strongEdges ? BeddyPalette.lineStrong : Color.white.opacity(0.10), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
     }
@@ -174,7 +195,7 @@ struct TonightPopoverView: View {
             Spacer(minLength: 8)
             Text(windowText)
                 .fontWeight(.semibold)
-                .foregroundStyle(Color(red: 219 / 255, green: 232 / 255, blue: 248 / 255))
+                .foregroundStyle(BeddyPalette.scheduleTime)
                 .monospacedDigit()
         }
         .font(.system(size: 13))
@@ -228,8 +249,7 @@ struct TonightPopoverView: View {
                     )
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain)
-                .padding(.vertical, 8)
+                .buttonStyle(BeddySubtleButtonStyle())
                 .foregroundStyle(BeddyPalette.muted)
                 .accessibilityIdentifier("popover.pause")
                 .disabled(!settings.hasActivatedSchedule)
@@ -242,8 +262,7 @@ struct TonightPopoverView: View {
                     Label("Pause tonight", systemImage: "pause.circle")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain)
-                .padding(.vertical, 8)
+                .buttonStyle(BeddySubtleButtonStyle())
                 .foregroundStyle(BeddyPalette.muted)
                 .accessibilityIdentifier("popover.pauseTonight")
             }
@@ -252,7 +271,7 @@ struct TonightPopoverView: View {
 
     private var finishTonightButton: some View {
         Button {
-            scheduler.finishTonight()
+            finishTonight()
         } label: {
             Text("I’m heading to bed")
                 .frame(maxWidth: .infinity)
@@ -276,7 +295,7 @@ struct TonightPopoverView: View {
         .padding(.top, 16)
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color.white.opacity(0.09))
+                .fill(strongEdges ? BeddyPalette.lineStrong : Color.white.opacity(0.09))
                 .frame(height: 1)
         }
         .accessibilityElement(children: .combine)
@@ -305,7 +324,7 @@ struct TonightPopoverView: View {
             }
             .accessibilityIdentifier("popover.quit")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BeddySubtleButtonStyle())
         .font(.system(size: 13, weight: .medium))
         .foregroundStyle(BeddyPalette.muted)
     }

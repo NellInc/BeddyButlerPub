@@ -47,17 +47,19 @@ vm.runInNewContext(fs.readFileSync(path.join(__dirname,"../Website/assets/sample
 const settle = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
 const quiet = id => statuses.get(`${id}-status`).textContent === "" && retries.get(id).hidden;
 (async () => {
-  assert.ok(players.every(p => p.paused && p.volume === 0.5));
+  assert.ok(players.every(p => p.paused && p.volume === 0.85));
   assert.ok(players.every(p => p.hidden));
-  assert.ok([...toggles.values()].every(t => !t.hidden));
+  assert.ok([...toggles.values()].every(t => !t.hidden && t.attributes["aria-pressed"] === "false"));
   const shyToggle = toggles.get("sample-shy-toggle");
   shyToggle.handlers.click();
   assert.equal(players[0].paused, false);
-  assert.equal(shyToggle.textContent, "Ⅱ Pause sample");
+  assert.equal(shyToggle.textContent, "❚❚ Pause sample");
   assert.equal(shyToggle.attributes["aria-label"], "Pause sample, Shy");
+  assert.equal(shyToggle.attributes["aria-pressed"], "true");
   shyToggle.handlers.click();
   assert.equal(players[0].paused, true);
   assert.equal(shyToggle.textContent, "▶ Hear sample");
+  assert.equal(shyToggle.attributes["aria-pressed"], "false");
   shyToggle.handlers.click();
   toggles.get("sample-insistent-toggle").handlers.click();
   assert.equal(shyToggle.attributes["aria-label"], "Hear sample, Shy");

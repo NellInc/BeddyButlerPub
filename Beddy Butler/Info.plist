@@ -31,7 +31,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2015–2026 Nell Watson</string>
+	<string>Copyright © 2015–2026 Nell Watson Inc.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

@@ -37,8 +37,12 @@ jobs:
             python3 Tools/validate_ci_workflow.py
             python3 Tools/validate_website.py
             python3 Tools/test_website_samples.py
-            node Tools/test_website_samples.js
+            node Tools/test_website_samples.cjs
             node Tools/test_website_avatars.cjs
+            node Tools/limb-rig-workbench/test.cjs shy
+            node Tools/limb-rig-workbench/test.cjs insistent
+            node Tools/limb-rig-workbench/test.cjs zombie
+            python3 Tools/test_store_screenshots.py
             python3 Tools/validate_app_store_metadata.py
             python3 Tools/check_large_files.py
             python3 Tools/test_app_bundle_validation.py

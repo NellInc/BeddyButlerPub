@@ -1,0 +1,20 @@
+html, body {
+  color-scheme: dark;
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+}
+#rig {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 520px;
+  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, .25));
+}
+.internal {
+  display: none;
+}

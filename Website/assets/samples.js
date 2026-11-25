@@ -16,19 +16,22 @@ for (const sample of samples) {
   const title = persona.charAt(0).toUpperCase() + persona.slice(1);
   const updateToggle = () => {
     if (!toggle) return;
-    toggle.textContent = sample.paused ? "▶ Hear sample" : "Ⅱ Pause sample";
-    toggle.setAttribute("aria-label", `${sample.paused ? "Hear" : "Pause"} sample, ${title}`);
+    const playing = !sample.paused;
+    toggle.textContent = playing ? "❚❚ Pause sample" : "▶ Hear sample";
+    toggle.setAttribute("aria-label", `${playing ? "Pause" : "Hear"} sample, ${title}`);
+    toggle.setAttribute("aria-pressed", String(playing));
   };
   if (toggle) {
     toggle.hidden = false;
     sample.hidden = true;
+    updateToggle();
     toggle.addEventListener("click", () => {
       if (sample.paused) sample.play().catch(playFailed);
       else sample.pause();
     });
     for (const event of ["play", "pause", "ended", "error"]) sample.addEventListener(event, updateToggle);
   }
-  sample.volume = 0.5;
+  sample.volume = 0.85;
   sample.addEventListener("play", () => {
     for (const other of samples) if (other !== sample) other.pause();
     if (retry) retry.hidden = true;

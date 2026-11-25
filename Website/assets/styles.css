@@ -4,7 +4,7 @@
   --night-deep: #030916;
   --ink: #f6f9ff;
   --muted: #aebbd0;
-  --faint: #7889a5;
+  --faint: #8a9db9;
   --blue: #80c6ff;
   --blue-bright: #a9ddff;
   --violet: #9ea9ff;
@@ -92,7 +92,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .brand img { border-radius: 10px; box-shadow: 0 6px 22px rgba(0,0,0,.35); }
 .site-header nav { display: flex; align-items: center; gap: 26px; margin-left: auto; }
 .site-header nav a, footer nav a { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 580; transition: color .2s ease; }
-.site-header nav a:hover, footer nav a:hover { color: white; }
+.site-header nav a:hover, footer nav a:hover, .site-header nav a[aria-current="page"], footer nav a[aria-current="page"] { color: white; }
 .nav-cta { padding: 9px 15px; border: 1px solid var(--line); border-radius: 100px; color: white; font-size: 13px; font-weight: 650; text-decoration: none; background: rgba(255,255,255,.06); backdrop-filter: blur(16px); }
 
 .section-shell { width: var(--shell); margin: 0 auto; position: relative; }
@@ -170,6 +170,7 @@ a.button-quiet:hover { background: rgba(255,255,255,.1); border-color: var(--lin
 .schedule-line strong { color:#dbe8f8; }
 .panel-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:19px; }
 .panel-actions span { padding:9px; text-align:center; border:1px solid rgba(255,255,255,.12); border-radius:10px; color:#d8eaff; font-size:10px; font-weight:650; background:rgba(255,255,255,.04); }
+.panel-actions .panel-primary { grid-column:1 / -1; border-color:rgba(169,221,255,.35); color:#071225; background:linear-gradient(180deg, #fff, #d8eaff); font-weight:750; }
 .panel-foot { margin-top:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,.09); display:flex; justify-content:space-between; gap:12px; font-size:9px; color:#8092aa; }
 .panel-foot strong { color:#adcaf0; }
 
@@ -402,13 +403,15 @@ footer > p { text-align:right; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior:auto; }
   *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  .persona-card:hover { transform:none; }
+  .persona-card:hover .persona-art img, .persona-card:hover .persona-art .avatar-rig { scale:1; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  :root { --glass:#10213d; --glass-strong:#10213d; }
+  :root { --glass:#10213d; --glass-strong:#172c4d; }
   body::before { display:none; }
-  .glass-card,.app-popover,.nav-cta,.button-quiet,.legal-note,.support-card,
-  .showcase,.feature-card,.persona-card,.accessibility,.privacy-card,.badge-orbit,
-  .orbit-label,.mac-stage { backdrop-filter:none; background:#10213d; }
+  .showcase,.feature-card,.persona-card,.accessibility,.privacy-card,.legal-note,.support-card { backdrop-filter:none; background:#0b182e; }
+  .glass-card,.nav-cta,.button-quiet,.badge-orbit,.orbit-label,.mac-stage { backdrop-filter:none; background:#10213d; }
+  .app-popover,.popover-cap { backdrop-filter:none; background:#172c4d; }
 }
 @media (prefers-contrast: more) {
   :root { --muted:#d2dbea; --faint:#b3c0d4; --line:rgba(255,255,255,.3); --line-strong:rgba(255,255,255,.5); }

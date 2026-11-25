@@ -27,7 +27,7 @@ Copy this file to `build/release-evidence/BeddyButler-<version>-<build>-<shortsh
 | Current public destinations | `python3 Tools/validate_live_destinations.py --mode current` |  |  |
 | Published destinations | `python3 Tools/validate_live_destinations.py --mode publication` after an approved deployment |  |  |
 | App Store metadata | `python3 Tools/validate_app_store_metadata.py` |  |  |
-| Website behaviour tests | `python3 Tools/test_website_samples.py`, `node Tools/test_website_samples.js`, and `node Tools/test_website_avatars.cjs` |  |  |
+| Website behaviour tests | `python3 Tools/test_website_samples.py`, `node Tools/test_website_samples.cjs`, `node Tools/test_website_avatars.cjs`, and `node Tools/limb-rig-workbench/test.cjs {shy,insistent,zombie}` |  |  |
 | Website design lint | `npx --yes impeccable@4.1.0 detect Website` |  |  |
 | Website browser smoke | Local home, accessibility, and press routes at desktop and narrow widths |  |  |
 | Audio | `python3 Tools/prepare_audio.py --check` |  |  |

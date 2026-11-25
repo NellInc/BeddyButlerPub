@@ -512,10 +512,9 @@ final class ButlerTimer: NSObject, ObservableObject {
                 userInfo: nil,
                 repeats: false
             )
-            nextTimer.tolerance = min(
-                30,
-                max(nudge.fireDate.timeIntervalSince(currentDate), 0) * 0.05
-            )
+            let remainingToFire = max(nudge.fireDate.timeIntervalSince(currentDate), 0)
+            let remainingInWindow = max(nudge.window.end.timeIntervalSince(nudge.fireDate) - 1, 0)
+            nextTimer.tolerance = min(30, remainingToFire * 0.05, remainingInWindow)
             RunLoop.main.add(nextTimer, forMode: .common)
             // Invalidate here too, in case anything scheduled a timer while this call ran.
             timer?.invalidate()
@@ -654,11 +653,12 @@ final class ButlerTimer: NSObject, ObservableObject {
         boundaryTimer?.invalidate()
     }
 
-    /// Republishes clock-dependent state (window start or end, a pause ending) without
-    /// drawing a new nudge interval.
+    /// Republishes clock-dependent state (window start or end, a pause ending, or an expired
+    /// one-night adjustment) without drawing a new nudge interval.
     func refreshTimeDependentState() {
         let currentDate = now()
         settings.clearExpiredMute(at: currentDate)
+        settings.clearExpiredTonightOverride(at: currentDate)
         if settings.hasActivatedSchedule {
             scheduleBoundaryRefresh(
                 after: currentDate,
@@ -814,6 +814,9 @@ final class ButlerTimer: NSObject, ObservableObject {
         }
         if let mutedUntil = settings.mutedUntil, mutedUntil > currentDate {
             boundaries.append(mutedUntil)
+        }
+        if let overrideExpiry = settings.tonightOverrideExpiryDate(), overrideExpiry > currentDate {
+            boundaries.append(overrideExpiry)
         }
         guard let fireDate = boundaries.min() else { return }
         let nextTimer = Timer(fire: fireDate, interval: 0, repeats: false) { [weak self] _ in

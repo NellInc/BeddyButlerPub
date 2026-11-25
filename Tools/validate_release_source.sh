@@ -38,8 +38,12 @@ if ! command -v node >/dev/null 2>&1; then
   print -u2 "Node.js is required to run the website behaviour tests. Install it, then rerun."
   exit 69
 fi
-node Tools/test_website_samples.js
+node Tools/test_website_samples.cjs
 node Tools/test_website_avatars.cjs
+node Tools/limb-rig-workbench/test.cjs shy
+node Tools/limb-rig-workbench/test.cjs insistent
+node Tools/limb-rig-workbench/test.cjs zombie
+python3 Tools/test_store_screenshots.py
 python3 Tools/validate_app_store_metadata.py
 python3 Tools/validate_ci_workflow.py
 python3 Tools/check_large_files.py

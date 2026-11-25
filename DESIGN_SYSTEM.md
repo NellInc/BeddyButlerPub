@@ -12,7 +12,7 @@ The shipped interface remains native SwiftUI. The canonical implementation is:
 * `Beddy Butler/ButlerRigView.swift` for the deformable character mesh and personality motion.
 * `Website/assets/styles.css` for the corresponding website presentation.
 
-The colour tokens are defined in `BeddyPalette` in `BeddyDesign.swift` and mirrored, except Night Lifted and Success, in the `:root` block of `Website/assets/styles.css`: Night `#061126`, Night Deep `#030916`, Night Lifted `#07152C`, Ink `#F6F9FF`, Muted `#AEBBD0`, Faint `#7889A5`, Blue `#80C6FF`, Blue Bright `#A9DDFF`, Violet `#9EA9FF`, Warm `#F2B375`, Zombie `#A6D18A`, Success `#A6E2BE`, Glass `#0F1F3A` at 74% (62% on the web), Glass Strong `#0E1D36` at 90% (88% on the web), Line white at 12%, and Line Strong white at 20%.
+The colour tokens are defined in `BeddyPalette` in `BeddyDesign.swift` and mirrored, except Night Lifted, Success, Orb Bottom, Orb Glyph, Card Eyebrow, and Schedule Time, in the `:root` block of `Website/assets/styles.css`: Night `#061126`, Night Deep `#030916`, Night Lifted `#07152C`, Ink `#F6F9FF`, Muted `#AEBBD0`, Faint `#7889A5` (`#8A9DB9` on the web for AA contrast on cards), Blue `#80C6FF`, Blue Bright `#A9DDFF`, Violet `#9EA9FF`, Warm `#F2B375`, Zombie `#A6D18A`, Success `#A6E2BE`, Glass `#0F1F3A` at 74% (62% on the web), Glass Strong `#0E1D36` at 90% (88% on the web), Line white at 12%, and Line Strong white at 20%.
 
 ## Artwork masters
 
@@ -20,7 +20,7 @@ The 4K transparent character masters live in `Artwork Sources/Characters`. The 4
 
 ## Character motion
 
-Each Butler is bound to an 8 by 12 deformable mesh with separate influence regions for the head, torso, primary hand, and secondary hand. Zombie also has an independently pulsing brain region. The choreography keeps a closed animation loop, uses 60 fps native rendering, pauses when the character leaves the visible window, and substitutes an identity pose when Reduce Motion is enabled. The asset catalogue contains crisp 1024-pixel rig textures derived from the 4K masters so the menu bar companion remains lightweight.
+Each Butler uses a 32-joint articulated skeleton shared with the website (`Website/assets/avatar-rig/`) and baked by `Tools/bake_native_rigs.cjs` into `Images.xcassets/*Motion.dataset/motion.bin` (`48 × 61..71` SpriteKit warp grids, 120 frames per closed loop, ~9.5 MB total across all three personalities). Native playback runs at 60 fps with `subdivisionLevels = 0`, precomputed source coordinates, cached prefiltered `SKTexture` instances, visibility pausing when offscreen or occluded, and a static unwarped identity pose when Reduce Motion is enabled. Missing or malformed datasets fall back to `ButlerRigidMotion`. The asset catalogue contains crisp 1024-pixel rig textures derived from the 4K masters so the menu bar companion remains lightweight.
 
 ## Native visual verification
 

@@ -193,7 +193,7 @@ class StoreScreenshotTests(unittest.TestCase):
         image = self.slide("06-free-and-private.png")
         icon = Image.open(
             TOOLS.parent
-            / "Beddy Butler/Images.xcassets/AppIcon.appiconset/Mac_512pt@2x.png"
+            / "Artwork Sources/AppIcon/beddy-butler-2026-master-4k.png"
         ).convert("RGB")
         icon = icon.resize((300, 300))
         outside = image.getpixel((170, 1100))

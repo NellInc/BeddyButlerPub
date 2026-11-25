@@ -373,6 +373,7 @@ final class AppSettings: ObservableObject {
     }
 
     func updateMaximumPersonality(_ value: ButlerPersonality) {
+        guard value != maximumPersonality else { return }
         maximumPersonality = value
         defaults.set(value.rawValue, forKey: UserDefaultKeys.maximumPersonality.rawValue)
         announceChange()
@@ -586,7 +587,7 @@ final class AppSettings: ObservableObject {
         let normalized = Self.clampSeconds(value)
         guard normalized != tonightOverrideStartSeconds else { return }
         tonightOverrideStartSeconds = normalized
-        defaults.set(normalized, forKey: UserDefaultKeys.tonightOverrideStartTimeValue.rawValue)
+        defaults.set(Double(normalized), forKey: UserDefaultKeys.tonightOverrideStartTimeValue.rawValue)
         announceChange()
     }
 
@@ -594,7 +595,7 @@ final class AppSettings: ObservableObject {
         let normalized = Self.clampSeconds(value)
         guard normalized != tonightOverrideBedSeconds else { return }
         tonightOverrideBedSeconds = normalized
-        defaults.set(normalized, forKey: UserDefaultKeys.tonightOverrideBedTimeValue.rawValue)
+        defaults.set(Double(normalized), forKey: UserDefaultKeys.tonightOverrideBedTimeValue.rawValue)
         announceChange()
     }
 
@@ -603,6 +604,10 @@ final class AppSettings: ObservableObject {
     func clearExpiredTonightOverride(at date: Date = Date(), calendar: Calendar = .autoupdatingCurrent) {
         guard let expiry = tonightOverrideExpiry(calendar: calendar), date >= expiry else { return }
         clearTonightOverrideSilently()
+    }
+
+    func tonightOverrideExpiryDate(calendar: Calendar = .autoupdatingCurrent) -> Date? {
+        tonightOverrideExpiry(calendar: calendar)
     }
 
     /// The latest of the adjustment's bedtime, the regular bedtime it replaces, and the end of its

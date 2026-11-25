@@ -69,6 +69,7 @@ enum NotchSafePopoverPlacement {
 enum ExternalLinks {
     static let website = URL(string: "https://www.beddybutler.com/")
     static let feedback = URL(string: "https://github.com/NellInc/beddybutlerpub/issues/new/choose")
+    static let source = URL(string: "https://github.com/NellInc/beddybutlerpub")
 }
 
 enum NativeSnapshotValidation {
@@ -163,6 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
     private var acknowledgeVisualItem: NSMenuItem?
     private var previewItem: NSMenuItem?
     private var snoozeItem: NSMenuItem?
+    private var finishTonightItem: NSMenuItem?
     private var muteItem: NSMenuItem?
     private var launchAtLoginItem: NSMenuItem?
     private var resumeItem: NSMenuItem?
@@ -292,10 +294,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
             // Only an earlier copy wins, so two copies launched together never both quit.
             let other = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
                 .filter({
-                    !$0.isTerminated && $0.processIdentifier != currentProcess
-                        && ($0.launchDate.map { $0 < ownLaunch } ?? false)
+                    guard !$0.isTerminated, $0.processIdentifier != currentProcess,
+                        let otherLaunch = $0.launchDate
+                    else { return false }
+                    return otherLaunch < ownLaunch
+                        || (otherLaunch == ownLaunch && $0.processIdentifier < currentProcess)
                 })
-                .min(by: { ($0.launchDate ?? .distantFuture) < ($1.launchDate ?? .distantFuture) })
+                .min(by: {
+                    let lhsLaunch = $0.launchDate ?? .distantFuture
+                    let rhsLaunch = $1.launchDate ?? .distantFuture
+                    if lhsLaunch != rhsLaunch { return lhsLaunch < rhsLaunch }
+                    return $0.processIdentifier < $1.processIdentifier
+                })
         else { return false }
 
         isHandingOff = true
@@ -369,9 +379,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         previewItem = preview
 
         let snooze = makeItem("Snooze 30 Minutes", action: #selector(snooze))
-        snooze.toolTip = "Stay quiet for 30 minutes, then nudge immediately"
         menu.addItem(snooze)
         snoozeItem = snooze
+
+        let finishTonight = makeItem("I’m Heading to Bed", action: #selector(finishTonightFromMenu))
+        finishTonight.toolTip = "Clear reminders and finish for tonight"
+        finishTonight.isHidden = true
+        menu.addItem(finishTonight)
+        finishTonightItem = finishTonight
 
         let mute = makeItem("Pause for Tonight", action: #selector(toggleMute))
         mute.toolTip = "Pause reminders for the current or next bedtime window"
@@ -561,6 +576,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
                 scheduler.pendingVisualNudgeCount == 1
                 ? "Visual bedtime nudge waiting"
                 : "\(scheduler.pendingVisualNudgeCount) visual bedtime nudges waiting"
+        } else if scheduler.hasFinishedTonight {
+            if let nextNudge = scheduler.nextNudge {
+                nextNudgeItem?.title =
+                    "Good night · Next: \(LocalizedScheduleText.dayAndTime(nextNudge))"
+            } else {
+                nextNudgeItem?.title = "Good night"
+            }
         } else if let mutedUntil = settings.mutedUntil, settings.isMuted() {
             nextNudgeItem?.title =
                 "Paused until \(LocalizedScheduleText.dayAndTime(mutedUntil))"
@@ -584,9 +606,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         snoozeItem?.toolTip = "Stay quiet for \(settings.snoozeMinutes) minutes, or until bedtime if sooner"
         snoozeItem?.isHidden = settings.isMuted()
         snoozeItem?.isEnabled = scheduler.canSnooze
+        finishTonightItem?.isHidden = !(scheduler.canSnooze || scheduler.isSnoozed) || scheduler.hasFinishedTonight
         // While snoozed, the menu still offers Pause for Tonight.
-        let offersResume = settings.isMuted() && !scheduler.isSnoozed
-        muteItem?.title = offersResume ? "Resume Nudges" : "Pause for Tonight"
+        if scheduler.hasFinishedTonight {
+            muteItem?.title = "Undo Finish"
+        } else {
+            let offersResume = settings.isMuted() && !scheduler.isSnoozed
+            muteItem?.title = offersResume ? "Resume Nudges" : "Pause for Tonight"
+        }
         muteItem?.isEnabled = settings.hasActivatedSchedule
         resumeItem?.isHidden = !(settings.isMuted() && scheduler.isSnoozed)
 
@@ -595,6 +622,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
             if scheduler.visualNudgePending {
                 button.image = MenuBarIcon.make(state: .pendingVisualNudge)
                 button.setAccessibilityLabel("Beddy Butler, \(pendingVisualDescription)")
+            } else if scheduler.hasFinishedTonight {
+                button.image = MenuBarIcon.make(state: .muted)
+                button.setAccessibilityLabel("Beddy Butler, finished for tonight")
             } else if let mutedUntil {
                 button.image = MenuBarIcon.make(state: .muted)
                 button.setAccessibilityLabel(
@@ -607,6 +637,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
             if scheduler.visualNudgePending {
                 button.toolTip =
                     "Beddy Butler, \(pendingVisualDescription). Open the menu to acknowledge."
+            } else if scheduler.hasFinishedTonight {
+                if let nextNudge = scheduler.nextNudge {
+                    button.toolTip =
+                        "Beddy Butler is finished for tonight. Next nudge: \(LocalizedScheduleText.dayAndTime(nextNudge))"
+                } else {
+                    button.toolTip = "Beddy Butler is finished for tonight"
+                }
             } else if let mutedUntil {
                 button.toolTip =
                     "Beddy Butler is paused until \(LocalizedScheduleText.dayAndTime(mutedUntil))"
@@ -682,14 +719,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         }
         notificationManager.onSnooze = { [weak self] in
             guard let self else { return }
-            scheduler.acknowledgeVisualNudge()
             scheduler.snooze()
             announce(scheduler.lastEvent)
             refreshMenuState()
         }
         notificationManager.onPause = { [weak self] in
             guard let self else { return }
-            scheduler.acknowledgeVisualNudge()
             scheduler.muteForCurrentWindow()
             announce(scheduler.lastEvent)
             refreshMenuState()
@@ -700,6 +735,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
     }
 
     @objc private func showPreferences(_ sender: Any?) {
+        statusPopover.performClose(nil)
         preferencesWindowController.present()
     }
 
@@ -749,6 +785,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
 
     private func pauseTonight() {
         scheduler.muteForCurrentWindow()
+        announce(scheduler.lastEvent)
+        refreshMenuState()
+    }
+
+    @objc private func finishTonightFromMenu(_ sender: Any?) {
+        finishTonight()
+    }
+
+    private func finishTonight() {
+        scheduler.finishTonight()
+        announce(scheduler.lastEvent)
+        refreshMenuState()
+    }
+
+    private func undoFinishTonight() {
+        scheduler.undoFinishTonight()
         announce(scheduler.lastEvent)
         refreshMenuState()
     }
@@ -834,6 +886,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
             )
             // Written before the renderer files, which the capture harness waits for.
             captureNativePreferencesWindow(to: directory.appendingPathComponent("preferences-window.png"))
+            let preferencesURL = directory.appendingPathComponent("preferences.png")
             try writeSnapshot(
                 of: PreferencesView(
                     settings: settings,
@@ -844,8 +897,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
                 )
                 .fixedSize(horizontal: false, vertical: true),
                 proposedWidth: 720,
-                to: directory.appendingPathComponent("preferences.png")
+                to: preferencesURL
             )
+            if ProcessInfo.processInfo.environment["BEDDY_BUTLER_CAPTURE_FULL_WINDOW"] == "1" {
+                captureFullNativePreferencesWindow(
+                    to: directory.appendingPathComponent("preferences-full-window.png"),
+                    backdropImageURL: preferencesURL
+                )
+            }
             try writeSnapshot(
                 of: makeTonightPopoverView().fixedSize(horizontal: false, vertical: true),
                 proposedWidth: 420,
@@ -882,6 +941,91 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         }
     }
 
+    private func captureFullNativePreferencesWindow(to destination: URL, backdropImageURL: URL) {
+        let rootView = PreferencesView(
+            settings: settings,
+            scheduler: scheduler,
+            loginItemManager: loginItemManager,
+            notificationManager: notificationManager,
+            captureAllSections: true
+        )
+        let hostingView = NSHostingView(rootView: rootView)
+        hostingView.appearance = NSAppearance(named: .darkAqua)
+        let fittingSize = hostingView.fittingSize
+        let size = NSSize(width: 720, height: max(fittingSize.height, 800))
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.backgroundColor = NSColor(red: 7 / 255, green: 21 / 255, blue: 44 / 255, alpha: 1)
+        window.isReleasedWhenClosed = false
+        hostingView.frame = NSRect(origin: .zero, size: size)
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+        hostingView.displayIfNeeded()
+        guard let overlay = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) else {
+            window.close()
+            return
+        }
+        hostingView.cacheDisplay(in: hostingView.bounds, to: overlay)
+        window.close()
+        guard NativeSnapshotValidation.hasVisibleContent(overlay),
+            let overlayImage = overlay.cgImage
+        else {
+            return
+        }
+        let backdropImage = NSImage(contentsOf: backdropImageURL)?.cgImage(
+            forProposedRect: nil,
+            context: nil,
+            hints: nil
+        )
+        let width = max(overlayImage.width, backdropImage?.width ?? 0)
+        let height = max(overlayImage.height, backdropImage?.height ?? 0)
+        guard
+            let context = CGContext(
+                data: nil,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        else {
+            return
+        }
+        context.setFillColor(CGColor(red: 7 / 255, green: 21 / 255, blue: 44 / 255, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        if let backdropImage {
+            // Core Graphics origin is bottom-left; align both captures at the top edge.
+            context.draw(
+                backdropImage,
+                in: CGRect(
+                    x: 0,
+                    y: height - backdropImage.height,
+                    width: backdropImage.width,
+                    height: backdropImage.height
+                )
+            )
+        }
+        context.draw(
+            overlayImage,
+            in: CGRect(
+                x: 0,
+                y: height - overlayImage.height,
+                width: overlayImage.width,
+                height: overlayImage.height
+            )
+        )
+        guard let composite = context.makeImage() else { return }
+        let bitmap = NSBitmapImageRep(cgImage: composite)
+        guard let data = bitmap.representation(using: .png, properties: [:]) else { return }
+        try? data.write(to: destination, options: .atomic)
+    }
+
     private func writeSnapshot<Content: View>(
         of content: Content,
         proposedWidth: CGFloat,
@@ -915,6 +1059,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
             preview: { [weak self] in self?.previewButler(nil) },
             acknowledge: { [weak self] in self?.acknowledgeVisualNudge(nil) },
             snooze: { [weak self] in self?.snooze(nil) },
+            finishTonight: { [weak self] in self?.finishTonight() },
+            undoFinishTonight: { [weak self] in self?.undoFinishTonight() },
             togglePause: { [weak self] in self?.togglePopoverPause() },
             pauseTonight: { [weak self] in self?.pauseTonight() },
             quit: { [weak self] in self?.quit(nil) }

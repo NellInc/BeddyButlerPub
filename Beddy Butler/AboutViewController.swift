@@ -97,19 +97,18 @@ struct AboutBeddyButlerView: View {
                     if let website = ExternalLinks.website {
                         Link(destination: website) {
                             Label("Visit website", systemImage: "safari")
-                                .frame(minWidth: 116)
+                                .frame(minWidth: 120)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(BeddyPalette.blue)
+                        .buttonStyle(BeddyPrimaryButtonStyle(glow: BeddyPalette.blue))
                         .accessibilityIdentifier("about.website")
                     }
 
-                    if let source = URL(string: "https://github.com/NellInc/beddybutlerpub") {
+                    if let source = ExternalLinks.source {
                         Link(destination: source) {
                             Label("View source", systemImage: "chevron.left.forwardslash.chevron.right")
-                                .frame(minWidth: 116)
+                                .frame(minWidth: 120)
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(BeddySecondaryButtonStyle())
                         .accessibilityIdentifier("about.source")
                     }
                 }

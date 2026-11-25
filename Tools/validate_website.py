@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "Website"
 # GitHub Pages cannot send headers, so every public page carries this policy.
 CONTENT_SECURITY_POLICY = (
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+    "default-src 'self'; script-src 'self'; style-src 'self'; "
     "img-src 'self' data:; media-src 'self'; frame-src 'self'; connect-src 'none'; "
     "object-src 'none'; base-uri 'none'; form-action 'none'"
 )
@@ -82,6 +82,10 @@ class PageParser(HTMLParser):
                 )
         if values.get("id"):
             self.ids.append(values["id"] or "")
+        if tag == "meta" and values.get("property") == "og:image":
+            og_image = values.get("content") or ""
+            if og_image.startswith("https://www.beddybutler.com/"):
+                self.resources.append(og_image.removeprefix("https://www.beddybutler.com"))
         if tag == "meta" and values.get("name") == "description":
             self.has_description = bool(values.get("content"))
         if tag == "meta" and values.get("name") == "viewport":
@@ -205,11 +209,9 @@ def main() -> int:
 
     # Internal rendering documents still receive full local link/asset checks,
     # but are not public landing pages with SEO and primary navigation.
-    internal_pages = { (SITE / name).resolve() for name in (
-        "assets/avatar-rig/embed.html", "experiments/limb-rig/index.html",
-        "experiments/limb-rig/all.html", "experiments/limb-rig/detail.html",
-    ) }
+    internal_pages = {(SITE / "assets/avatar-rig/embed.html").resolve()}
     parsed_pages: dict[Path, PageParser] = {}
+    referenced_assets: set[Path] = set()
     for page in pages:
         parser = PageParser()
         parser.feed(page.read_text(encoding="utf-8"))
@@ -243,17 +245,16 @@ def main() -> int:
                 errors.append(
                     f"{rel}: expected canonical {expected_canonical}, found {parser.canonical!r}"
                 )
-        if page.relative_to(SITE).parts[0] != "experiments":
-            if parser.csp != [CONTENT_SECURITY_POLICY]:
-                errors.append(
-                    f"{rel}: expected exactly one Content-Security-Policy meta tag "
-                    f"with the site policy, found {parser.csp!r}"
-                )
-            if parser.inline_scripts:
-                errors.append(
-                    f"{rel}: {parser.inline_scripts} inline executable script(s) "
-                    "would be blocked by the Content-Security-Policy"
-                )
+        if parser.csp != [CONTENT_SECURITY_POLICY]:
+            errors.append(
+                f"{rel}: expected exactly one Content-Security-Policy meta tag "
+                f"with the site policy, found {parser.csp!r}"
+            )
+        if parser.inline_scripts:
+            errors.append(
+                f"{rel}: {parser.inline_scripts} inline executable script(s) "
+                "would be blocked by the Content-Security-Policy"
+            )
         duplicates = sorted(
             {value for value in parser.ids if parser.ids.count(value) > 1}
         )
@@ -269,6 +270,8 @@ def main() -> int:
                 continue
             if target is not None and not target.exists():
                 errors.append(f"{rel}: missing image {src}")
+            elif target is not None:
+                referenced_assets.add(target)
 
         for resource in parser.resources:
             target, _ = local_target(resource, page)
@@ -277,6 +280,8 @@ def main() -> int:
                 continue
             if target is not None and not target.exists():
                 errors.append(f"{rel}: missing resource {resource}")
+            elif target is not None:
+                referenced_assets.add(target)
 
         for href in parser.links:
             target, fragment = local_target(href, page)
@@ -286,6 +291,8 @@ def main() -> int:
             if target is not None and not target.exists():
                 errors.append(f"{rel}: broken local link {href}")
                 continue
+            if target is not None:
+                referenced_assets.add(target)
             if target is not None and fragment and target.suffix == ".html":
                 target_parser = parsed_pages.get(target.resolve())
                 if target_parser is None or fragment not in target_parser.ids:
@@ -296,6 +303,26 @@ def main() -> int:
         target, _ = local_target(icon["src"])
         if target is None or not is_inside_site(target) or not target.exists():
             errors.append(f"site.webmanifest: missing icon {icon['src']}")
+        else:
+            referenced_assets.add(target)
+
+    sample_manifest_path = SITE / "assets" / "sample-manifest.json"
+    if sample_manifest_path.is_file():
+        referenced_assets.add(sample_manifest_path.resolve())
+        for entry in json.loads(sample_manifest_path.read_text(encoding="utf-8")):
+            asset_path = (SITE / entry["asset"]).resolve()
+            if asset_path.exists():
+                referenced_assets.add(asset_path)
+
+    assets_dir = (SITE / "assets").resolve()
+    avatar_rig_dir = (assets_dir / "avatar-rig").resolve()
+    for asset in sorted(assets_dir.iterdir()):
+        if asset.is_dir():
+            if asset.resolve() != avatar_rig_dir:
+                errors.append(f"Unexpected asset directory: {asset.relative_to(ROOT)}")
+            continue
+        if asset.resolve() not in referenced_assets:
+            errors.append(f"Unreferenced website asset: {asset.relative_to(ROOT)}")
 
     sitemap = ET.parse(SITE / "sitemap.xml")
     namespace = {"sitemap": "http://www.sitemaps.org/schemas/sitemap/0.9"}

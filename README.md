@@ -19,12 +19,12 @@ The current edition preserves the original artwork and all 91 source recordings 
 - Named primary and secondary schedules, with either selected weekdays or a rotating cycle for observances, shift patterns, weekends, and other routines.
 - A one-night adjustment that temporarily replaces the regular window, including on a normally inactive night.
 - Automatic recalculation after time-zone changes, daylight-saving changes, system clock changes, sleep, and wake.
-- Randomized reminder timing from the chosen base frequency up to 70 percent later.
+- Randomised reminder timing from the chosen base frequency up to 70 percent later.
 - Shy, Insistent, and Zombie personalities with 103 peak-safe, loudness-balanced release clips derived from 91 preserved recordings.
 - Five overlong Zombie recordings split at natural silences, keeping every playable Zombie nudge under 10 seconds.
 - Progressive mode, which escalates after every two or three reminders and resets for each bedtime window.
 - Sound, a persistent visual menu-bar badge, or both, so bedtime nudges do not depend on hearing.
-- Optional silent local Notification Center alerts with Acknowledge, Snooze, and Pause actions.
+- Optional silent local Notification Centre alerts with Acknowledge, Snooze, and Pause actions.
 - Persisted visual nudge counts that survive relaunch until acknowledged.
 - One-click voice previews.
 - Nonrepeating shuffled voice playback within each personality.
@@ -37,7 +37,7 @@ The current edition preserves the original artwork and all 91 source recordings 
 - A compact native Tonight panel on left click, a full command menu on right click, an adaptive system icon, and accessible SwiftUI preferences.
 - A system-native, edge-to-edge preferences window with adaptive Liquid Glass accents on macOS 26 and standard-material fallbacks on earlier supported releases.
 - A focused night appearance with Reduced Transparency and Reduced Motion adaptation.
-- Personality-specific 2D skeletal animation with independently rigged head, torso, hands, and Zombie brain motion.
+- Personality-specific 2D skeletal animation with a 32-joint articulated mesh shared with the website.
 - A modern macOS application icon that retains the original sleepy butler character.
 - Privacy-preserving website and feedback commands that open the relevant page in the default browser. Mac App Store builds use Apple's update mechanism.
 - App Sandbox and hardened runtime configuration.

@@ -94,10 +94,12 @@ xcodebuild archive \
   -project "Beddy Butler.xcodeproj" \
   -scheme "Beddy Butler" \
   -configuration Release \
+  -destination "generic/platform=macOS" \
   -archivePath "$archive" \
   CODE_SIGN_IDENTITY="Developer ID Application" \
   CODE_SIGN_STYLE=Manual \
   PROVISIONING_PROFILE_SPECIFIER='' \
+  SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
   MARKETING_VERSION="$version" \
   CURRENT_PROJECT_VERSION="$build"
 

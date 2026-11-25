@@ -18,6 +18,10 @@ enum BeddyPalette {
     static let glassStrong = Color(red: 14 / 255, green: 29 / 255, blue: 54 / 255).opacity(0.90)
     static let line = Color.white.opacity(0.12)
     static let lineStrong = Color.white.opacity(0.20)
+    static let orbBottom = Color(red: 100 / 255, green: 143 / 255, blue: 228 / 255)
+    static let orbGlyph = Color(red: 16 / 255, green: 37 / 255, blue: 66 / 255)
+    static let cardEyebrow = Color(red: 145 / 255, green: 170 / 255, blue: 200 / 255)
+    static let scheduleTime = Color(red: 219 / 255, green: 232 / 255, blue: 248 / 255)
 }
 
 struct BeddyBackdrop: View {
@@ -138,15 +142,24 @@ struct BeddyCard<Content: View>: View {
 private struct GlassCapsuleModifier: ViewModifier {
     let tint: Color
 
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
+
+    private var strongEdges: Bool { reduceTransparency || contrast == .increased }
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
+        if reduceTransparency {
+            content
+                .background(BeddyPalette.night, in: Capsule())
+                .overlay {
+                    Capsule().strokeBorder(BeddyPalette.lineStrong, lineWidth: 1)
+                }
+        } else if #available(macOS 26.0, *) {
             content
                 .glassEffect(.regular.tint(tint.opacity(0.24)), in: Capsule())
                 .overlay {
-                    if contrast == .increased {
+                    if strongEdges {
                         Capsule().strokeBorder(BeddyPalette.lineStrong, lineWidth: 1)
                     }
                 }
@@ -155,7 +168,7 @@ private struct GlassCapsuleModifier: ViewModifier {
                 .background(.thinMaterial, in: Capsule())
                 .overlay {
                     Capsule().strokeBorder(
-                        contrast == .increased ? BeddyPalette.lineStrong : BeddyPalette.line,
+                        strongEdges ? BeddyPalette.lineStrong : BeddyPalette.line,
                         lineWidth: 1
                     )
                 }
@@ -167,6 +180,7 @@ struct BeddyPrimaryButtonStyle: ButtonStyle {
     let glow: Color
 
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -188,7 +202,7 @@ struct BeddyPrimaryButtonStyle: ButtonStyle {
                     .strokeBorder(Color.white.opacity(0.55), lineWidth: 1)
             }
             .shadow(color: glow.opacity(0.26), radius: 12, y: 6)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
             .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.42)
     }
 }
@@ -211,6 +225,22 @@ struct BeddySecondaryButtonStyle: ButtonStyle {
                     .strokeBorder(contrast == .increased ? BeddyPalette.lineStrong : BeddyPalette.line, lineWidth: 1)
             }
             .opacity(isEnabled ? 1 : 0.38)
+    }
+}
+
+struct BeddySubtleButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                Color.white.opacity(configuration.isPressed ? 0.09 : 0),
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .contentShape(Rectangle())
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.42)
     }
 }
 

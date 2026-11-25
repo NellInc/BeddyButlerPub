@@ -4,7 +4,7 @@ Unlinked local prototype. No production app rig, homepage, copy, or artwork asse
 
 Thirty-two hierarchical joints: body, chest, neck, head, two shoulders, two elbows, two wrists, eight visible digit roots, eight knuckles, and two hip/knee/ankle chains. A 32 by 40 textured mesh with sixfold local hand refinement uses normalized spatial skin weights. The face remains rigid. Chest breathing accompanies a small pelvic weight shift. Two-bone inverse kinematics bends the knees to reach moving ankles; a slight heel lift pivots each shoe around a fixed toe contact. Digit motion is deliberately restrained and slightly staggered over an eight-second loop. Controls provide motion strength, deterministic pose scrubbing, a bone overlay and exact rest pose. Reduced Motion starts paused; hidden tabs skip rendering.
 
-Run `node Website/experiments/limb-rig/test.cjs` from the repository root. Tests check identity, normalized weights, connected finite joint transforms across 121 poses, loop continuity and fixed toe contacts. These are geometry checks, not artistic acceptance.
+Run `node Tools/limb-rig-workbench/test.cjs` from the repository root. Tests check identity, normalized weights, connected finite joint transforms across 121 poses, loop continuity and fixed toe contacts. These are geometry checks, not artistic acceptance.
 
 Visual review: original and articulated pose inspected side by side in the local browser. This is flat-image skinning, not separated production limb artwork. Extreme bends can distort cuffs, clothing and overlapping arms; hidden body surfaces cannot be revealed. Next acceptance is Nell's motion review before authoring separated layers or native integration. Existing native rigid-sprite tests remain unchanged.
 
@@ -13,7 +13,7 @@ Full-body pose visually inspected after leg integration. Flat mesh still shows f
 ## Three-character rigs
 `characters.js` now defines Shy and Zombie joint coordinates, hand regions, fingers, leg chains, head bounds and personality timing. Both use the articulated mesh renderer, not static images. Shy uses restrained hand-to-mouth motion; Zombie uses slower claw and forearm movement. Original aspect ratios are retained. The gallery embeds all three running rigs.
 
-Run the geometry checks with `node Website/experiments/limb-rig/test.cjs shy`, `node Website/experiments/limb-rig/test.cjs insistent`, and `node Website/experiments/limb-rig/test.cjs zombie`. All three passed identity, normalized weights, 121 connected finite poses, loop continuity and toe-contact checks. Browser screenshots showed changed poses for all three characters. Mesh seams and flat-image occlusion limitations remain experimental.
+Run the geometry checks with `node Tools/limb-rig-workbench/test.cjs shy`, `node Tools/limb-rig-workbench/test.cjs insistent`, and `node Tools/limb-rig-workbench/test.cjs zombie`. All three passed identity, normalized weights, 121 connected finite poses, loop continuity and toe-contact checks. Browser screenshots showed changed poses for all three characters. Mesh seams and flat-image occlusion limitations remain experimental.
 
 ## Renderer and yawn-contact repair
 Rendering now uses one indexed WebGL mesh draw rather than thousands of Canvas clips. A uniform shared-vertex mesh removes the adaptive T-junctions. Animation phase uses unrounded wall-clock progression on requestAnimationFrame; paused/hidden periods reset timing. Canvas remains a compatibility fallback.

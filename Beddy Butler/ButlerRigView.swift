@@ -64,6 +64,9 @@ final class ButlerMotionSKView: SKView {
         preferredFramesPerSecond = 60
         ignoresSiblingOrder = true
         shouldCullNonVisibleNodes = true
+        motionScene.onDidFinishUpdate = { [weak self] in
+            self?.handleStaticFrameFinished()
+        }
         presentScene(motionScene)
     }
 
@@ -258,7 +261,17 @@ final class ButlerMotionSKView: SKView {
         isPaused = false
         guard !motionEnabled else { return }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let self, self.renderGeneration == generation, !self.motionEnabled else { return }
+            self.isPaused = true
+            self.needsStaticRender = false
+        }
+    }
+
+    private func handleStaticFrameFinished() {
+        guard !motionEnabled, needsStaticRender else { return }
+        let generation = renderGeneration
+        DispatchQueue.main.async { [weak self] in
             guard let self, self.renderGeneration == generation, !self.motionEnabled else { return }
             self.isPaused = true
             self.needsStaticRender = false
@@ -268,6 +281,9 @@ final class ButlerMotionSKView: SKView {
 
 final class ButlerMotionScene: SKScene {
     static let maximumTextureHeight = 384
+    @MainActor private static var textureCache: [ButlerPersonality: (SKTexture, CGFloat)] = [:]
+
+    var onDidFinishUpdate: (() -> Void)?
 
     private var characterNode: SKSpriteNode?
     private var articulatedMotion: ButlerArticulatedMotion?
@@ -305,6 +321,11 @@ final class ButlerMotionScene: SKScene {
         }
         lastUpdateTime = currentTime
         applyCurrentPose()
+    }
+
+    override func didFinishUpdate() {
+        super.didFinishUpdate()
+        onDidFinishUpdate?()
     }
 
     @discardableResult
@@ -349,11 +370,19 @@ final class ButlerMotionScene: SKScene {
     }
 
     private func replaceCharacter(with personality: ButlerPersonality) {
-        guard let image = NSImage(named: personality.rigAssetName) else { return }
+        let texture: SKTexture
+        let aspect: CGFloat
+        if let cached = Self.textureCache[personality] {
+            (texture, aspect) = cached
+        } else {
+            guard let image = NSImage(named: personality.rigAssetName) else { return }
+            let built = makeDisplayTexture(from: image)
+            built.0.filteringMode = .linear
+            Self.textureCache[personality] = built
+            (texture, aspect) = built
+        }
 
         articulatedMotion = ButlerArticulatedMotion.load(personality)
-        let (texture, aspect) = makeDisplayTexture(from: image)
-        texture.filteringMode = .linear
         let newNode = SKSpriteNode(texture: texture)
         newNode.name = "animated-\(personality.rawValue)-butler"
         newNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
@@ -605,6 +634,7 @@ struct ButlerArticulatedMotion {
     let frames: Int
     let duration: Double
     let positions: [SIMD2<Float>]
+    let sourcePositions: [SIMD2<Float>]
     var vertexCount: Int { (columns + 1) * (rows + 1) }
 
     @MainActor private static var cache: [ButlerPersonality: ButlerArticulatedMotion] = [:]
@@ -631,12 +661,20 @@ struct ButlerArticulatedMotion {
             values[0].rounded() == values[0], values[1].rounded() == values[1],
             values[2].rounded() == values[2]
         else { return nil }
-        columns = Int(values[0])
-        rows = Int(values[1])
+        let columnCount = Int(values[0])
+        let rowCount = Int(values[1])
+        columns = columnCount
+        rows = rowCount
         frames = Int(values[2])
         duration = Double(values[3])
-        guard values.count == 4 + (columns + 1) * (rows + 1) * frames * 2 else { return nil }
+        let count = (columnCount + 1) * (rowCount + 1)
+        guard values.count == 4 + count * frames * 2 else { return nil }
         positions = stride(from: 4, to: values.count, by: 2).map { SIMD2(values[$0], values[$0 + 1]) }
+        let columnScale = Float(columnCount)
+        let rowScale = Float(rowCount)
+        sourcePositions = (0..<count).map {
+            SIMD2(Float($0 % (columnCount + 1)) / columnScale, Float($0 / (columnCount + 1)) / rowScale)
+        }
     }
 
     func geometry(at time: Double, intensity: Float) -> SKWarpGeometryGrid {
@@ -645,18 +683,23 @@ struct ButlerArticulatedMotion {
         let next = (first + 1) % frames
         let blend = Float(phase - Double(first))
         let amount = min(max(intensity.isFinite ? intensity : 0, 0), 1)
-        var destination = [SIMD2<Float>]()
-        destination.reserveCapacity(vertexCount)
-        var source = [SIMD2<Float>]()
-        source.reserveCapacity(vertexCount)
-        for i in 0..<vertexCount {
-            let rest = SIMD2(Float(i % (columns + 1)) / Float(columns), Float(i / (columns + 1)) / Float(rows))
-            source.append(rest)
-            let a = positions[first * vertexCount + i]
-            let b = positions[next * vertexCount + i]
-            destination.append(rest + (a + (b - a) * blend - rest) * amount)
+        let count = vertexCount
+        let firstOffset = first * count
+        let nextOffset = next * count
+        let destination = [SIMD2<Float>](unsafeUninitializedCapacity: count) { buffer, initializedCount in
+            for i in 0..<count {
+                let rest = sourcePositions[i]
+                let a = positions[firstOffset + i]
+                let b = positions[nextOffset + i]
+                buffer[i] = rest + (a + (b - a) * blend - rest) * amount
+            }
+            initializedCount = count
         }
         return SKWarpGeometryGrid(
-            columns: columns, rows: rows, sourcePositions: source, destinationPositions: destination)
+            columns: columns,
+            rows: rows,
+            sourcePositions: sourcePositions,
+            destinationPositions: destination
+        )
     }
 }

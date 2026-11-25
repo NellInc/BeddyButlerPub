@@ -3,11 +3,11 @@ Beddy Butler is a menu bar app and intentionally has no Dock icon. After launch,
 No account or network connection is required. Preferences are stored locally. Notification permission is requested only when the user explicitly enables Notification Centre alerts. Open at Login is also strictly opt in.
 
 Suggested review path:
-1. Launch the app and complete the short first run explanation.
+1. Launch the app, review the short first-run guide, and click Start Beddy Butler.
 2. Open Preferences from the menu bar.
-3. Choose Visual or Both under Nudge style.
-4. Use Hear a Butler Sample from the right click menu.
-5. Adjust the bedtime window or apply a one night adjustment.
-6. Enable a second schedule or rotating cycle under Schedule.
+3. Choose Visual or Both under Nudge delivery in the Nudge section.
+4. Use Preview Visual Badge or Preview Sound + Badge (or Hear a Shy Sample in Sound mode) from the right-click menu.
+5. Adjust the bedtime window or apply a one-night adjustment.
+6. Enable Use a second schedule under Bedtime window to test alternate nights or a rotating cycle.
 
 The app uses App Sandbox and no network entitlement. The website and feedback commands open external URLs in the default browser.

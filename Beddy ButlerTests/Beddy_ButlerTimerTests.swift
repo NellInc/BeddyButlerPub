@@ -52,7 +52,7 @@ final class BeddyButlerTimerTests: XCTestCase {
         let settings = AppSettings(defaults: defaults)
         let audio = RecordingAudioPlayer()
         let scheduler = ButlerTimer(settings: settings, audioPlayer: audio)
-        defer { scheduler.timer?.invalidate() }
+        defer { scheduler.invalidateTimers() }
         XCTAssertFalse(settings.hasCompletedOnboarding)
         XCTAssertNil(scheduler.nextNudge)
         XCTAssertNil(scheduler.timer)
@@ -489,7 +489,7 @@ final class BeddyButlerTimerTests: XCTestCase {
         let scheduler = ButlerTimer(
             settings: settings, audioPlayer: AudioPlayer(), now: { now },
             intervalProvider: { $0.lowerBound }, escalationProvider: { 2 })
-        defer { scheduler.timer?.invalidate() }
+        defer { scheduler.invalidateTimers() }
         scheduler.snooze()
         XCTAssertEqual(settings.mutedUntil, now.addingTimeInterval(20 * 60))
         scheduler.resumeNudges()
@@ -520,7 +520,7 @@ final class BeddyButlerTimerTests: XCTestCase {
             visualNotifier: notifier
         )
         defer {
-            scheduler.timer?.invalidate()
+            scheduler.invalidateTimers()
         }
 
         scheduler.deliverNudge()
@@ -548,7 +548,7 @@ final class BeddyButlerTimerTests: XCTestCase {
         let audioPlayer = RecordingAudioPlayer()
         let scheduler = ButlerTimer(settings: settings, audioPlayer: audioPlayer)
         defer {
-            scheduler.timer?.invalidate()
+            scheduler.invalidateTimers()
         }
 
         scheduler.deliverNudge()
@@ -579,7 +579,7 @@ final class BeddyButlerTimerTests: XCTestCase {
             escalationProvider: { 2 }
         )
         defer {
-            scheduler.timer?.invalidate()
+            scheduler.invalidateTimers()
         }
 
         currentDate = date(2026, 7, 22, 12, calendar: currentCalendar)
@@ -607,7 +607,7 @@ final class BeddyButlerTimerTests: XCTestCase {
             escalationProvider: { 2 }
         )
         defer {
-            scheduler.timer?.invalidate()
+            scheduler.invalidateTimers()
         }
 
         currentDate = date(2026, 7, 21, 22, 45, calendar: currentCalendar)
@@ -638,7 +638,7 @@ final class BeddyButlerTimerTests: XCTestCase {
             escalationProvider: { 2 }
         )
         defer {
-            scheduler.timer?.invalidate()
+            scheduler.invalidateTimers()
         }
         let originalNudge = try XCTUnwrap(scheduler.nextNudge)
 
@@ -669,7 +669,7 @@ final class BeddyButlerTimerTests: XCTestCase {
             escalationProvider: { 2 }
         )
         defer {
-            scheduler.timer?.invalidate()
+            scheduler.invalidateTimers()
         }
 
         XCTAssertTrue(scheduler.canSnooze)
@@ -699,7 +699,7 @@ final class BeddyButlerTimerTests: XCTestCase {
             escalationProvider: { 2 }
         )
         defer {
-            scheduler.timer?.invalidate()
+            scheduler.invalidateTimers()
         }
 
         XCTAssertFalse(scheduler.canSnooze)
@@ -728,7 +728,7 @@ final class BeddyButlerTimerTests: XCTestCase {
             escalationProvider: { 2 }
         )
         defer {
-            scheduler.timer?.invalidate()
+            scheduler.invalidateTimers()
         }
 
         scheduler.snooze(minutes: 30)
@@ -763,7 +763,7 @@ final class BeddyButlerTimerTests: XCTestCase {
             escalationProvider: { 2 }
         )
         defer {
-            scheduler.timer?.invalidate()
+            scheduler.invalidateTimers()
         }
 
         scheduler.snooze(minutes: 30)
@@ -793,7 +793,7 @@ final class BeddyButlerTimerTests: XCTestCase {
             escalationProvider: { 2 }
         )
         defer {
-            scheduler.timer?.invalidate()
+            scheduler.invalidateTimers()
         }
 
         scheduler.snooze(minutes: 30)
@@ -1404,5 +1404,44 @@ final class BeddyButlerTimerTests: XCTestCase {
         XCTAssertEqual(audio.playCount, 0)
         XCTAssertGreaterThan(try XCTUnwrap(scheduler.nextNudge), clock.now)
         XCTAssertEqual(scheduler.timer?.isValid, true)
+    }
+
+    @MainActor
+    func testTimerToleranceStaysInsideBedtimeWindow() throws {
+        let (settings, _) = try activatedSettings("ToleranceClamp")
+        settings.updateFrequencyMinutes(1)
+        let calendar = Calendar.autoupdatingCurrent
+        // 22:58:55 with a 1-minute interval fires at 22:59:55, leaving 5 seconds before 23:00:00.
+        let now = date(2026, 7, 21, 22, 58, calendar: calendar).addingTimeInterval(55)
+        let clock = TestClock(now)
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        let timer = try XCTUnwrap(scheduler.timer)
+        XCTAssertLessThanOrEqual(timer.tolerance, 4.0)
+        XCTAssertGreaterThanOrEqual(timer.tolerance, 0)
+    }
+
+    @MainActor
+    func testBoundaryRefreshClearsExpiredTonightOverrideAndSchedulesExpiry() throws {
+        let (settings, _) = try activatedSettings("OverrideBoundary")
+        let calendar = Calendar.autoupdatingCurrent
+        let evening = date(2026, 7, 21, 20, calendar: calendar)
+        settings.enableTonightOverride(on: evening, calendar: calendar)
+        settings.updateTonightOverrideStartSeconds(20 * 3_600 + 30 * 60)
+        settings.updateTonightOverrideBedSeconds(21 * 3_600)
+
+        let clock = TestClock(date(2026, 7, 21, 20, 45, calendar: calendar))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        XCTAssertNotNil(settings.tonightOverrideDate)
+        XCTAssertEqual(scheduler.boundaryTimer?.fireDate, date(2026, 7, 21, 21, calendar: calendar))
+
+        // After the day rolls past the override anchor, boundary refresh clears it.
+        let afterExpiry = try XCTUnwrap(settings.tonightOverrideExpiryDate(calendar: calendar))
+        clock.now = afterExpiry.addingTimeInterval(1)
+        scheduler.refreshTimeDependentState()
+        XCTAssertNil(settings.tonightOverrideDate)
     }
 }

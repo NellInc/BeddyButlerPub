@@ -7,6 +7,7 @@ import plistlib
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -188,21 +189,24 @@ def validate_build_settings(settings: dict[str, str]) -> None:
 
 def release_build_settings() -> dict[str, str]:
     try:
-        completed = subprocess.run(
-            [
-                "xcodebuild",
-                "-project",
-                str(PROJECT),
-                "-target",
-                "Beddy Butler",
-                "-configuration",
-                "Release",
-                "-showBuildSettings",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        with tempfile.TemporaryDirectory(prefix="BeddySecurityPosture.") as derived_data:
+            completed = subprocess.run(
+                [
+                    "xcodebuild",
+                    "-project",
+                    str(PROJECT),
+                    "-scheme",
+                    "Beddy Butler",
+                    "-configuration",
+                    "Release",
+                    "-derivedDataPath",
+                    derived_data,
+                    "-showBuildSettings",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
     except (OSError, subprocess.CalledProcessError) as error:
         raise SecurityPostureError(
             f"could not resolve Release build settings: {error}"

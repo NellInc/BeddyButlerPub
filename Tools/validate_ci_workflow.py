@@ -41,8 +41,12 @@ REQUIRED_STEPS = (
     "persist-credentials: false",
     "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES",
     "python3 Tools/test_website_samples.py",
-    "node Tools/test_website_samples.js",
+    "node Tools/test_website_samples.cjs",
     "node Tools/test_website_avatars.cjs",
+    "node Tools/limb-rig-workbench/test.cjs shy",
+    "node Tools/limb-rig-workbench/test.cjs insistent",
+    "node Tools/limb-rig-workbench/test.cjs zombie",
+    "python3 Tools/test_store_screenshots.py",
 )
 
 
