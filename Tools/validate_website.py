@@ -34,6 +34,8 @@ class PageParser(HTMLParser):
         self.title_depth = 0
         self.title = ""
         self.h1_count = 0
+        self.main_count = 0
+        self.has_skip_link = False
         self.canonical: str | None = None
         self.has_description = False
         self.has_viewport = False
@@ -41,6 +43,9 @@ class PageParser(HTMLParser):
         self.csp: list[str] = []
         self.inline_scripts = 0
         self.inline_styles = 0
+        self.data_script_depth = 0
+        self.current_data_script: list[str] = []
+        self.data_scripts: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = dict(attrs)
@@ -48,18 +53,21 @@ class PageParser(HTMLParser):
             self.has_language = bool(values.get("lang"))
         if tag == "a" and values.get("href"):
             self.links.append(values["href"] or "")
+            if "skip-link" in (values.get("class") or "").split() and values.get("href") == "#main":
+                self.has_skip_link = True
         if tag == "link" and values.get("href"):
             self.resources.append(values["href"] or "")
             if values.get("rel") == "canonical":
                 self.canonical = values["href"]
         if tag in {"script", "source", "audio", "iframe"} and values.get("src"):
             self.resources.append(values["src"] or "")
-        if (
-            tag == "script"
-            and not values.get("src")
-            and (values.get("type") or "").strip().lower() not in DATA_SCRIPT_TYPES
-        ):
-            self.inline_scripts += 1
+        if tag == "script" and not values.get("src"):
+            script_type = (values.get("type") or "").strip().lower()
+            if script_type in DATA_SCRIPT_TYPES:
+                self.data_script_depth += 1
+                self.current_data_script = []
+            else:
+                self.inline_scripts += 1
         if (
             tag == "meta"
             and (values.get("http-equiv") or "").lower() == "content-security-policy"
@@ -97,14 +105,22 @@ class PageParser(HTMLParser):
             self.title_depth += 1
         if tag == "h1":
             self.h1_count += 1
+        if tag == "main":
+            self.main_count += 1
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "title":
             self.title_depth = max(0, self.title_depth - 1)
+        elif tag == "script" and self.data_script_depth:
+            self.data_script_depth -= 1
+            self.data_scripts.append("".join(self.current_data_script))
+            self.current_data_script = []
 
     def handle_data(self, data: str) -> None:
         if self.title_depth:
             self.title += data
+        if self.data_script_depth:
+            self.current_data_script.append(data)
 
 
 def local_target(
@@ -234,6 +250,16 @@ def main() -> int:
             errors.append(f"{rel}: missing title")
         if parser.h1_count != 1:
             errors.append(f"{rel}: expected exactly one h1, found {parser.h1_count}")
+        if page.resolve() not in internal_pages:
+            if parser.main_count != 1 or "main" not in parser.ids:
+                errors.append(f"{rel}: expected exactly one <main id=\"main\"> landmark")
+            if not parser.has_skip_link:
+                errors.append(f"{rel}: missing <a class=\"skip-link\" href=\"#main\">")
+        for index, payload in enumerate(parser.data_scripts, start=1):
+            try:
+                json.loads(payload)
+            except json.JSONDecodeError as exc:
+                errors.append(f"{rel}: invalid JSON data script #{index}: {exc}")
         if page.resolve() not in internal_pages and page.name != "404.html":
             site_relative = page.relative_to(SITE)
             if site_relative == Path("index.html"):
@@ -358,6 +384,17 @@ def main() -> int:
             f"extra {sorted(sitemap_locations - canonical_pages)}"
         )
     errors.extend(stale_sitemap_dates(sitemap, namespace))
+
+    llms_path = SITE / "llms.txt"
+    if not llms_path.is_file():
+        errors.append("llms.txt: missing file")
+    else:
+        llms_text = llms_path.read_text(encoding="utf-8")
+        missing_llms_urls = sorted(
+            url for url in canonical_pages if url and f"({url})" not in llms_text
+        )
+        if missing_llms_urls:
+            errors.append(f"llms.txt: missing canonical URLs {missing_llms_urls}")
 
     required_primary_links = {
         "/accessibility/",

@@ -243,44 +243,55 @@ struct ScheduleCalculator: Sendable {
                     byAdding: .day,
                     value: dayOffset,
                     to: startOfReferenceDay
-                ),
-                let times = schedule.times(for: anchorDay, calendar: calendar),
-                // Equal begin and bed times are not a 24-hour window; that night has no window.
-                times.bed != times.start,
-                let start = wallClockDate(seconds: times.start, on: anchorDay)
+                )
             else {
                 return nil
             }
-
-            let crossesMidnight = times.bed < times.start
-            guard
-                let endDay = crossesMidnight
-                    ? calendar.date(byAdding: .day, value: 1, to: anchorDay)
-                    : anchorDay,
-                let end = wallClockDate(seconds: times.bed, on: endDay)
-            else {
-                return nil
-            }
-            if end > start {
-                return BedtimeWindow(start: start, end: end)
-            }
-
-            // A begin time inside a spring-forward gap is pushed forward by the whole gap,
-            // which can pass a bedtime just after the gap. Begin at the first valid instant.
-            guard
-                let gapStart = WallClockDateResolver.date(
-                    seconds: times.start,
-                    on: anchorDay,
-                    calendar: calendar,
-                    matchingPolicy: .nextTime
-                ),
-                end > gapStart
-            else {
-                return nil
-            }
-            return BedtimeWindow(start: gapStart, end: end)
+            return window(on: anchorDay, schedule: schedule)
         }
         .sorted { $0.start < $1.start }
+    }
+
+    func window(
+        on anchorDay: Date,
+        schedule: WeeklyBedtimeSchedule
+    ) -> BedtimeWindow? {
+        guard
+            let times = schedule.times(for: anchorDay, calendar: calendar),
+            // Equal begin and bed times are not a 24-hour window; that night has no window.
+            times.bed != times.start,
+            let start = wallClockDate(seconds: times.start, on: anchorDay)
+        else {
+            return nil
+        }
+
+        let crossesMidnight = times.bed < times.start
+        guard
+            let endDay = crossesMidnight
+                ? calendar.date(byAdding: .day, value: 1, to: anchorDay)
+                : anchorDay,
+            let end = wallClockDate(seconds: times.bed, on: endDay)
+        else {
+            return nil
+        }
+        if end > start {
+            return BedtimeWindow(start: start, end: end)
+        }
+
+        // A begin time inside a spring-forward gap is pushed forward by the whole gap,
+        // which can pass a bedtime just after the gap. Begin at the first valid instant.
+        guard
+            let gapStart = WallClockDateResolver.date(
+                seconds: times.start,
+                on: anchorDay,
+                calendar: calendar,
+                matchingPolicy: .nextTime
+            ),
+            end > gapStart
+        else {
+            return nil
+        }
+        return BedtimeWindow(start: gapStart, end: end)
     }
 
     private func wallClockDate(seconds: Int, on day: Date) -> Date? {

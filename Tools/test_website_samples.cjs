@@ -100,9 +100,16 @@ const quiet = id => statuses.get(`${id}-status`).textContent === "" && retries.g
   assert.ok(players.every(p => p.paused));
   await players[0].play(); winHandlers.pagehide();
   assert.ok(players.every(p => p.paused));
-  players[2].play = () => Promise.reject(new Error("unsupported format"));
+  players[2].play = () => {
+    players[2].paused = false;
+    players[2].handlers.play();
+    return Promise.reject(new Error("unsupported format"));
+  };
   toggles.get("sample-zombie-toggle").handlers.click();
   await settle();
+  assert.equal(players[2].paused, true);
+  assert.equal(toggles.get("sample-zombie-toggle").attributes["aria-pressed"], "false");
+  assert.equal(toggles.get("sample-zombie-toggle").textContent, "▶ Hear sample");
   assert.match(statuses.get("sample-zombie-status").textContent, /could not play/);
   assert.equal(retries.get("sample-zombie").hidden, false);
   console.log("Audio controller passed: custom button wiring and labels, no autoplay, exclusive playback, errors, retry/rejection, no false error on pause/switch while loading, hidden-tab and page-exit pause.");

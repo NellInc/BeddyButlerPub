@@ -316,6 +316,7 @@ struct TonightPopoverView: View {
             }
             .keyboardShortcut(",")
             .accessibilityIdentifier("popover.preferences")
+            .help("Open Beddy Butler Preferences.")
 
             Spacer()
 
@@ -324,13 +325,16 @@ struct TonightPopoverView: View {
             }
             .accessibilityLabel("About Beddy Butler")
             .accessibilityIdentifier("popover.about")
+            .help("Show information about Beddy Butler.")
 
             Spacer()
 
             Button("Quit") {
                 quit()
             }
+            .keyboardShortcut("q")
             .accessibilityIdentifier("popover.quit")
+            .help("Quit Beddy Butler.")
         }
         .buttonStyle(BeddySubtleButtonStyle())
         .font(.system(size: 13, weight: .medium))

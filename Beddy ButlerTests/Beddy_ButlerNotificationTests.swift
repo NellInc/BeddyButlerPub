@@ -81,6 +81,45 @@ final class BeddyButlerNotificationTests: XCTestCase {
         XCTAssertEqual(events, ["acknowledge", "snooze", "pause", "open"])
     }
 
+    func testDeliverVisualNudgeBuildsSilentGroupedRequestsAndSurfacesErrors() async throws {
+        let center = TestLocalNotificationCenter()
+        let manager = LocalNotificationManager(center: center)
+
+        manager.deliverVisualNudge(count: 1, personality: nil)
+        let silentSingle = try XCTUnwrap(center.addedRequests.last)
+        XCTAssertEqual(silentSingle.identifier, LocalNotificationManager.notificationIdentifier)
+        XCTAssertEqual(silentSingle.content.title, "Bedtime nudge")
+        XCTAssertEqual(
+            silentSingle.content.body,
+            "A silent bedtime reminder is waiting in the menu bar."
+        )
+        XCTAssertEqual(
+            silentSingle.content.categoryIdentifier,
+            LocalNotificationManager.categoryIdentifier
+        )
+        XCTAssertEqual(
+            silentSingle.content.threadIdentifier,
+            LocalNotificationManager.notificationIdentifier
+        )
+        XCTAssertNil(silentSingle.content.sound)
+
+        manager.deliverVisualNudge(count: 1, personality: .shy)
+        let voicedSingle = try XCTUnwrap(center.addedRequests.last)
+        XCTAssertEqual(
+            voicedSingle.content.body,
+            "Your shy butler is waiting in the menu bar."
+        )
+
+        manager.deliverVisualNudge(count: 3, personality: .zombie)
+        let multiple = try XCTUnwrap(center.addedRequests.last)
+        XCTAssertEqual(multiple.content.body, "3 bedtime nudges are waiting.")
+
+        center.nextAddError = CocoaError(.coderInvalidValue)
+        manager.deliverVisualNudge(count: 1, personality: nil)
+        await settleMainActorTasks()
+        XCTAssertNotNil(manager.lastError)
+    }
+
     private func makeDefaults() -> UserDefaults {
         makeIsolatedDefaults(prefix: "BeddyButler.NotificationTests")
     }
@@ -97,8 +136,10 @@ private final class TestLocalNotificationCenter: LocalNotificationCenter {
     private var statusCompletions: [@Sendable (UNAuthorizationStatus) -> Void] = []
     private var requestCompletions: [@Sendable (Bool, (any Error)?) -> Void] = []
 
+    private(set) var addedRequests: [UNNotificationRequest] = []
     private(set) var removedPendingIdentifiers: [String] = []
     private(set) var removedDeliveredIdentifiers: [String] = []
+    var nextAddError: (any Error)?
 
     func setDelegate(_ delegate: (any UNUserNotificationCenterDelegate)?) {}
 
@@ -121,7 +162,10 @@ private final class TestLocalNotificationCenter: LocalNotificationCenter {
         _ request: UNNotificationRequest,
         withCompletionHandler completionHandler: @escaping @Sendable ((any Error)?) -> Void
     ) {
-        completionHandler(nil)
+        addedRequests.append(request)
+        let error = nextAddError
+        nextAddError = nil
+        completionHandler(error)
     }
 
     func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {

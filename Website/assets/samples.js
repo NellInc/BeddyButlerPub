@@ -6,6 +6,8 @@ for (const sample of samples) {
   const retry = document.querySelector(`[data-player="${sample.id}"]`);
   const say = message => { if (status) status.textContent = message; };
   const failed = () => {
+    if (!sample.paused) sample.pause();
+    updateToggle();
     say("This sample could not play. Check your connection, then try again.");
     if (retry) retry.hidden = false;
   };

@@ -153,6 +153,105 @@ final class BeddyButlerWallClockTests: XCTestCase {
             locale: Locale(identifier: "en_GB")
         )
         XCTAssertTrue(dstPreview.contains("23:00 to 02:30 next day"), dstPreview)
+
+        // A window starting inside the 29 March 2026 gap (01:30 -> 02:15) begins at 02:00.
+        let springDay = try XCTUnwrap(
+            london.date(from: DateComponents(year: 2026, month: 3, day: 29, hour: 12))
+        )
+        let gapStartSchedule = WeeklyBedtimeSchedule.everyNight(
+            startSeconds: 1 * 3_600 + 30 * 60,
+            bedSeconds: 2 * 3_600 + 15 * 60
+        )
+        let gapStartPreview = PreferencesView.schedulePreview(
+            offset: 0,
+            referenceDate: springDay,
+            schedule: gapStartSchedule,
+            primaryName: "Regular",
+            alternateName: "Alternate",
+            calendar: london,
+            locale: Locale(identifier: "en_GB")
+        )
+        XCTAssertTrue(gapStartPreview.contains("02:00 to 02:15"), gapStartPreview)
+
+        // A window starting inside the gap and ending at the gap boundary (01:30 -> 02:00) collapses to zero duration.
+        let emptyGapSchedule = WeeklyBedtimeSchedule.everyNight(
+            startSeconds: 1 * 3_600 + 30 * 60,
+            bedSeconds: 2 * 3_600
+        )
+        let emptyGapPreview = PreferencesView.schedulePreview(
+            offset: 0,
+            referenceDate: springDay,
+            schedule: emptyGapSchedule,
+            primaryName: "Regular",
+            alternateName: "Alternate",
+            calendar: london,
+            locale: Locale(identifier: "en_GB")
+        )
+        XCTAssertTrue(emptyGapPreview.hasSuffix(": no valid window"), emptyGapPreview)
+    }
+
+    @MainActor
+    func testStaleStatusReceiptsClearWhenStateAdvances() {
+        let future = Date(timeIntervalSince1970: 2_000_000_000)
+        XCTAssertTrue(
+            PreferencesView.isStaleStatusReceipt(
+                "No valid bedtime window is configured.",
+                nextNudge: future,
+                isMuted: false,
+                canSnooze: false
+            )
+        )
+        XCTAssertTrue(
+            PreferencesView.isStaleStatusReceipt(
+                "No bedtime window is available to mute.",
+                nextNudge: future,
+                isMuted: false,
+                canSnooze: false
+            )
+        )
+        XCTAssertFalse(
+            PreferencesView.isStaleStatusReceipt(
+                "No bedtime window is available to mute.",
+                nextNudge: nil,
+                isMuted: false,
+                canSnooze: false
+            )
+        )
+        XCTAssertTrue(
+            PreferencesView.isStaleStatusReceipt(
+                "Snooze is available during your bedtime window.",
+                nextNudge: future,
+                isMuted: false,
+                canSnooze: true
+            )
+        )
+        XCTAssertFalse(
+            PreferencesView.isStaleStatusReceipt(
+                "Snooze is available during your bedtime window.",
+                nextNudge: future,
+                isMuted: false,
+                canSnooze: false
+            )
+        )
+        XCTAssertTrue(
+            PreferencesView.isStaleStatusReceipt(
+                "Nudges are paused for this bedtime window.",
+                nextNudge: future,
+                isMuted: false,
+                canSnooze: true
+            )
+        )
+    }
+
+    func testDayAndTimeRespectsLocaleAndTimeZone() {
+        let date = Date(timeIntervalSince1970: 1_700_001_000)
+        let utc = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let formatted = LocalizedScheduleText.dayAndTime(
+            date,
+            locale: Locale(identifier: "en_GB"),
+            timeZone: utc
+        )
+        XCTAssertTrue(formatted.contains("22:30"), formatted)
     }
 
     @MainActor

@@ -36,8 +36,14 @@ enum LocalizedScheduleText {
         return formatter.string(from: date)
     }
 
-    static func dayAndTime(_ date: Date) -> String {
+    static func dayAndTime(
+        _ date: Date,
+        locale: Locale = .autoupdatingCurrent,
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> String {
         let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
         formatter.setLocalizedDateFormatFromTemplate("EEE d MMM jm")
         return formatter.string(from: date)
     }
@@ -442,23 +448,19 @@ struct PreferencesView: View {
         formatter.setLocalizedDateFormatFromTemplate("EEE d MMM")
         let label = formatter.string(from: day)
         guard let times = schedule.times(for: day, calendar: calendar) else { return "\(label): no reminders" }
-        guard times.bed != times.start else { return "\(label): no valid window" }
+        guard let window = ScheduleCalculator(calendar: calendar).window(on: day, schedule: schedule) else {
+            return "\(label): no valid window"
+        }
         let name: String
         switch schedule.selection(for: day, calendar: calendar) {
         case .oneNightOverride: name = "Tonight’s adjustment"
         case .alternate: name = alternateName
         default: name = primaryName
         }
-        let start = WallClockTime.date(for: times.start, relativeTo: day, calendar: calendar)
         let crossesMidnight = times.bed < times.start
-        let endDay =
-            crossesMidnight
-            ? (calendar.date(byAdding: .day, value: 1, to: day) ?? day)
-            : day
-        let end = WallClockTime.date(for: times.bed, relativeTo: endDay, calendar: calendar)
         let suffix = crossesMidnight ? " next day" : ""
-        let startText = LocalizedScheduleText.time(start, locale: locale, timeZone: calendar.timeZone)
-        let endText = LocalizedScheduleText.time(end, locale: locale, timeZone: calendar.timeZone)
+        let startText = LocalizedScheduleText.time(window.start, locale: locale, timeZone: calendar.timeZone)
+        let endText = LocalizedScheduleText.time(window.end, locale: locale, timeZone: calendar.timeZone)
         return "\(label): \(name), \(startText) to \(endText)\(suffix)"
     }
 
@@ -1429,7 +1431,7 @@ struct PreferencesView: View {
         case .visual:
             "Preview Visual Badge"
         case .both:
-            "Preview Sound + Badge"
+            scheduler.hasFinishedTonight ? settings.personality.sampleLabel : "Preview Sound + Badge"
         }
     }
 
@@ -1467,6 +1469,9 @@ struct PreferencesView: View {
         if settings.activeWeekdays.isEmpty {
             return "No active nights are selected."
         }
+        if scheduler.nextNudge == nil, !settings.isMuted() {
+            return "No valid bedtime window is configured."
+        }
         return scheduler.canSnooze || scheduler.isSnoozed
             ? "Your bedtime window is active."
             : "Waiting for tonight’s bedtime window."
@@ -1475,15 +1480,34 @@ struct PreferencesView: View {
     /// Receipts describing a state that has since ended (a pause that expired or was
     /// resumed, or a schedule that became valid again) fall back to the live lines.
     private func isStaleStatusReceipt(_ event: String) -> Bool {
-        if event == "No valid bedtime window is configured." {
-            return scheduler.nextNudge != nil
+        Self.isStaleStatusReceipt(
+            event,
+            nextNudge: scheduler.nextNudge,
+            isMuted: settings.isMuted(),
+            canSnooze: scheduler.canSnooze
+        )
+    }
+
+    static func isStaleStatusReceipt(
+        _ event: String,
+        nextNudge: Date?,
+        isMuted: Bool,
+        canSnooze: Bool
+    ) -> Bool {
+        if event == "No valid bedtime window is configured."
+            || event == "No bedtime window is available to mute."
+        {
+            return nextNudge != nil
+        }
+        if event == "Snooze is available during your bedtime window." {
+            return canSnooze || isMuted
         }
         let describesPause =
             event.hasPrefix("Snoozed until ")
             || event == "Snooze reaches bedtime, so nudges are paused for tonight."
             || event == "Nudges are paused for this bedtime window."
             || event == "Good night."
-        return describesPause && !settings.isMuted()
+        return describesPause && !isMuted
     }
 
     private var weekdayChoices: [WeekdayChoice] {
