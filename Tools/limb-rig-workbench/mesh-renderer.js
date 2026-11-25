@@ -1,1 +1,1 @@
-// Shared implementation: ../../assets/avatar-rig/mesh-renderer.js
+// Shared implementation: ../../Website/assets/avatar-rig/mesh-renderer.js

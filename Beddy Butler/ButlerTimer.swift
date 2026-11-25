@@ -434,7 +434,11 @@ final class ButlerTimer: NSObject, ObservableObject {
         }
 
         let currentDate = now()
+        let wasMuted = settings.mutedUntil != nil
         settings.clearExpiredMute(at: currentDate)
+        if wasMuted, settings.mutedUntil == nil {
+            scheduledMutedUntil = nil
+        }
         settings.clearExpiredTonightOverride(at: currentDate)
 
         let calculator = ScheduleCalculator(calendar: .autoupdatingCurrent)
@@ -569,6 +573,7 @@ final class ButlerTimer: NSObject, ObservableObject {
             )
         else {
             lastEvent = "No bedtime window is available to mute."
+            NotificationCenter.default.post(name: .beddyScheduleDidChange, object: self)
             return
         }
 
@@ -657,7 +662,11 @@ final class ButlerTimer: NSObject, ObservableObject {
     /// one-night adjustment) without drawing a new nudge interval.
     func refreshTimeDependentState() {
         let currentDate = now()
+        let wasMuted = settings.mutedUntil != nil
         settings.clearExpiredMute(at: currentDate)
+        if wasMuted, settings.mutedUntil == nil {
+            scheduledMutedUntil = nil
+        }
         settings.clearExpiredTonightOverride(at: currentDate)
         if settings.hasActivatedSchedule {
             scheduleBoundaryRefresh(

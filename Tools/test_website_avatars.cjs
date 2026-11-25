@@ -13,6 +13,7 @@ document.hidden=true;docEvents.visibilitychange();assert(hosts.every(h=>h.frame.
 document.hidden=false;docEvents.visibilitychange();assert(hosts.every(h=>h.frame.contentWindow.messages.at(-1).playing===true));
 observe([{target:hosts[0],isIntersecting:false}]);assert.equal(hosts[0].frame.contentWindow.messages.at(-1).playing,false);
 events.message({origin:'http://localhost',source:hosts[1].frame.contentWindow,data:{type:'butler-unavailable'}});assert(!hosts[1].classes.has('rig-ready'));assert(hosts[1].frame.removed);
+docEvents.visibilitychange();observe([{target:hosts[1],isIntersecting:true}]);assert(hosts[1].frame.removed);
 reduced.matches=true;changed();assert(hosts.every(h=>!h.classes.has('rig-ready')&&h.frame.removed));
-reduced.matches=false;changed();assert(!hosts[2].frame.removed);
-console.log('Avatar loader passed: three personalities, lazy initialization, visibility pause, GPU fallback, Reduced Motion.');
+reduced.matches=false;changed();assert(!hosts[2].frame.removed);assert(hosts[1].frame.removed);
+console.log('Avatar loader passed: three personalities, lazy initialization, visibility pause, sticky GPU fallback, Reduced Motion.');

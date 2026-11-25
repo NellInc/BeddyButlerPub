@@ -271,6 +271,10 @@ struct PreferencesView: View {
     @State private var showingTonightOverride: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var strongEdges: Bool { reduceTransparency || contrast == .increased }
 
     init(
         settings: AppSettings,
@@ -558,6 +562,7 @@ struct PreferencesView: View {
                     if scheduler.visualNudgePending {
                         Button {
                             scheduler.acknowledgeVisualNudge()
+                            AccessibilityAnnouncer.post(scheduler.lastEvent)
                         } label: {
                             Label("Acknowledge Badge", systemImage: "checkmark")
                         }
@@ -569,6 +574,7 @@ struct PreferencesView: View {
                     if scheduler.hasFinishedTonight {
                         Button {
                             scheduler.undoFinishTonight()
+                            AccessibilityAnnouncer.post(scheduler.lastEvent)
                         } label: {
                             Label("Undo Finish", systemImage: "arrow.uturn.backward")
                         }
@@ -579,6 +585,7 @@ struct PreferencesView: View {
                     } else if settings.isMuted() {
                         Button {
                             scheduler.resumeNudges()
+                            AccessibilityAnnouncer.post(scheduler.lastEvent)
                         } label: {
                             Label("Resume Nudges", systemImage: "play.fill")
                         }
@@ -589,12 +596,14 @@ struct PreferencesView: View {
                         if scheduler.isSnoozed {
                             Button("I’m heading to bed") {
                                 scheduler.finishTonight()
+                                AccessibilityAnnouncer.post(scheduler.lastEvent)
                             }
                             .accessibilityIdentifier("tonight.finishTonight")
                             .help("Clear reminders and finish for tonight.")
 
                             Button("Pause Tonight") {
                                 scheduler.muteForCurrentWindow()
+                                AccessibilityAnnouncer.post(scheduler.lastEvent)
                             }
                             .accessibilityIdentifier("tonight.pause")
                             .accessibilityHint("Pause reminders for the current or next bedtime window")
@@ -603,6 +612,7 @@ struct PreferencesView: View {
                     } else {
                         Button {
                             scheduler.snooze()
+                            AccessibilityAnnouncer.post(scheduler.lastEvent)
                         } label: {
                             Label("Snooze \(settings.snoozeMinutes) minutes", systemImage: "timer")
                         }
@@ -614,6 +624,7 @@ struct PreferencesView: View {
                         if scheduler.canSnooze {
                             Button("I’m heading to bed") {
                                 scheduler.finishTonight()
+                                AccessibilityAnnouncer.post(scheduler.lastEvent)
                             }
                             .accessibilityIdentifier("tonight.finishTonight")
                             .help("Clear reminders and finish for tonight.")
@@ -621,6 +632,7 @@ struct PreferencesView: View {
 
                         Button("Pause Tonight") {
                             scheduler.muteForCurrentWindow()
+                            AccessibilityAnnouncer.post(scheduler.lastEvent)
                         }
                         .accessibilityIdentifier("tonight.pause")
                         .disabled(!settings.hasActivatedSchedule)
@@ -960,12 +972,15 @@ struct PreferencesView: View {
                     }
                     .padding(12)
                     .background(
-                        Color.primary.opacity(0.035),
+                        reduceTransparency ? BeddyPalette.nightDeep : Color.primary.opacity(0.035),
                         in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                     )
                     .overlay {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
+                            .strokeBorder(
+                                strongEdges ? BeddyPalette.lineStrong : Color.primary.opacity(0.07),
+                                lineWidth: 1
+                            )
                     }
                 }
 
@@ -1037,6 +1052,7 @@ struct PreferencesView: View {
 
                         Button {
                             scheduler.previewNudge(settings.personality)
+                            AccessibilityAnnouncer.post(scheduler.lastEvent)
                         } label: {
                             Label(previewLabel, systemImage: previewSymbol)
                         }

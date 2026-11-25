@@ -14,7 +14,7 @@ const players = ["shy", "insistent", "zombie"].map(name => {
     addEventListener(k, f) { this.handlers[k] = f; }
   });
   retries.set(id, { hidden: true, handlers: {}, addEventListener(k, f) { this.handlers[k] = f; } });
-  return { id, error: null, ended: false, paused: true, handlers: {},
+  return { id, error: null, ended: false, paused: true, currentTime: 0, handlers: {},
     addEventListener(k, f) { const prior = this.handlers[k]; this.handlers[k] = () => { prior?.(); f(); }; },
     // Browser order: pause() fires "pause", then rejects a still-pending play() with AbortError.
     pause() {
@@ -61,10 +61,18 @@ const quiet = id => statuses.get(`${id}-status`).textContent === "" && retries.g
   assert.equal(shyToggle.textContent, "▶ Hear sample");
   assert.equal(shyToggle.attributes["aria-pressed"], "false");
   shyToggle.handlers.click();
+  players[0].currentTime = 4.2;
   toggles.get("sample-insistent-toggle").handlers.click();
+  assert.equal(players[0].currentTime, 0);
   assert.equal(shyToggle.attributes["aria-label"], "Hear sample, Shy");
   assert.equal(toggles.get("sample-insistent-toggle").attributes["aria-label"], "Pause sample, Insistent");
   assert.ok(players[0].paused && !players[1].paused && players[2].paused);
+  players[1].currentTime = 3.1;
+  players[1].ended = true;
+  players[1].handlers.ended();
+  assert.equal(players[1].currentTime, 0);
+  assert.equal(toggles.get("sample-insistent-toggle").attributes["aria-pressed"], "false");
+  players[1].ended = false;
   // Switching samples and double-toggling while play() is still pending is not a failure.
   await settle();
   assert.ok(quiet("sample-shy") && quiet("sample-insistent"));

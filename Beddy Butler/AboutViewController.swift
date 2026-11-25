@@ -144,11 +144,14 @@ final class AboutWindowController: NSWindowController {
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
+        window.isRestorable = false
         window.backgroundColor = .clear
+        window.appearance = NSAppearance(named: .darkAqua)
         window.contentViewController = NSHostingController(rootView: AboutBeddyButlerView())
         window.center()
 
         super.init(window: window)
+        shouldCascadeWindows = false
     }
 
     @available(*, unavailable)

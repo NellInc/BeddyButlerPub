@@ -153,6 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         let popover = NSPopover()
         popover.behavior = .transient
         popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        popover.appearance = NSAppearance(named: .darkAqua)
         popover.delegate = self
         popover.contentViewController = NSHostingController(rootView: makeTonightPopoverView())
         return popover
@@ -367,6 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
             "Acknowledge Badge",
             action: #selector(acknowledgeVisualNudge)
         )
+        acknowledge.toolTip = "Clear the waiting visual bedtime badge"
         acknowledge.isHidden = true
         menu.addItem(acknowledge)
         acknowledgeVisualItem = acknowledge
@@ -395,6 +397,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
 
         // While snoozed, the toggle above offers Pause for Tonight, so Resume needs its own item.
         let resume = makeItem("Resume Nudges", action: #selector(resumeFromMenu))
+        resume.toolTip = "End the current snooze and resume reminders"
         resume.isHidden = true
         menu.addItem(resume)
         resumeItem = resume
@@ -595,10 +598,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         switch settings.nudgeDelivery {
         case .sound:
             previewItem?.title = settings.personality.sampleLabel
+            previewItem?.toolTip = "Play a sample of the selected Butler voice"
         case .visual:
             previewItem?.title = "Preview Visual Badge"
+            previewItem?.toolTip = "Show a preview of the persistent menu bar badge"
         case .both:
             previewItem?.title = "Preview Sound + Badge"
+            previewItem?.toolTip = "Play a voice sample and show a menu bar badge preview"
         }
         previewItem?.isEnabled = !scheduler.hasFinishedTonight
         acknowledgeVisualItem?.isHidden = !scheduler.visualNudgePending
@@ -610,9 +616,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
         // While snoozed, the menu still offers Pause for Tonight.
         if scheduler.hasFinishedTonight {
             muteItem?.title = "Undo Finish"
+            muteItem?.toolTip = "Resume reminders and restore any waiting menu bar badge"
         } else {
             let offersResume = settings.isMuted() && !scheduler.isSnoozed
             muteItem?.title = offersResume ? "Resume Nudges" : "Pause for Tonight"
+            muteItem?.toolTip =
+                offersResume
+                ? "Resume bedtime reminders for tonight"
+                : "Pause reminders for the current or next bedtime window"
         }
         muteItem?.isEnabled = settings.hasActivatedSchedule
         resumeItem?.isHidden = !(settings.isMuted() && scheduler.isSnoozed)
@@ -868,14 +879,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSPopo
     }
 
     private func announce(_ message: String) {
-        NSAccessibility.post(
-            element: NSApplication.shared,
-            notification: .announcementRequested,
-            userInfo: [
-                .announcement: message,
-                .priority: NSNumber(value: NSAccessibilityPriorityLevel.medium.rawValue),
-            ]
-        )
+        AccessibilityAnnouncer.post(message)
     }
 
     private func captureUI(to directory: URL) {

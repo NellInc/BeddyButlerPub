@@ -1,1 +1,1 @@
-// Shared implementation: ../../assets/avatar-rig/characters.js
+// Shared implementation: ../../Website/assets/avatar-rig/characters.js

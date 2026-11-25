@@ -1,1 +1,1 @@
-// Shared implementation: ../../assets/avatar-rig/rig.js
+// Shared implementation: ../../Website/assets/avatar-rig/rig.js

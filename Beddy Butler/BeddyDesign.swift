@@ -262,3 +262,18 @@ extension View {
         modifier(PrimaryGlassButtonModifier(tint: tint))
     }
 }
+
+@MainActor
+enum AccessibilityAnnouncer {
+    static func post(_ message: String) {
+        guard !message.isEmpty else { return }
+        NSAccessibility.post(
+            element: NSApplication.shared,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: message,
+                .priority: NSNumber(value: NSAccessibilityPriorityLevel.medium.rawValue),
+            ]
+        )
+    }
+}

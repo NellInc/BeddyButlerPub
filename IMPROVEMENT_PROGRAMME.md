@@ -22,7 +22,7 @@ This is the local working goal for the full 2.0.2 improvement sweep. It turns th
 | App Store metadata guard | Validate local App Store copy files, required URLs, privacy summary, and screenshot dimensions | Added locally | `python3 Tools/validate_app_store_metadata.py` |
 | CI evidence | Upload test and validation artifacts from CI | Added locally | `.github/workflows/ci.yml` |
 | Publication interlocks | Require exact clean commit approval for notarization, App Store upload, and manual website deployment | Added locally | `Tools/require_publication_approval.py`, publication control tests, and `.github/workflows/pages.yml` |
-| Visual state evidence | Capture six isolated product states with executable and image hashes, black-frame rejection, and diversity checks | Added locally | `Tools/capture_acceptance_states.swift`; native Preferences inspection remains a person-led gate when offscreen AppKit controls use placeholders |
+| Visual state evidence | Capture ten isolated product states with executable and image hashes, black-frame rejection, and diversity checks | Added locally | `Tools/capture_acceptance_states.swift`; native Preferences inspection remains a person-led gate when offscreen AppKit controls use placeholders |
 
 ## Phase 2, human acceptance gates
 

@@ -1444,4 +1444,50 @@ final class BeddyButlerTimerTests: XCTestCase {
         scheduler.refreshTimeDependentState()
         XCTAssertNil(settings.tonightOverrideDate)
     }
+
+    @MainActor
+    func testExpiredPausePreservesScheduledNextNightNudgeOnRecalculate() throws {
+        let (settings, _) = try activatedSettings("ExpiredPausePreserve")
+        let calendar = Calendar.autoupdatingCurrent
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: calendar))
+        var draws = 0
+        let scheduler = makeScheduler(settings, clock: clock) { range in
+            draws += 1
+            return range.lowerBound + Double(draws) * 19
+        }
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.muteForCurrentWindow()
+        let nextNightNudge = try XCTUnwrap(scheduler.nextNudge)
+        let drawsAfterMute = draws
+
+        clock.now = date(2026, 7, 21, 23, 5, calendar: calendar)
+        scheduler.refreshTimeDependentState()
+        XCTAssertNil(settings.mutedUntil)
+
+        scheduler.recalculate(preservingPendingNudge: true)
+        XCTAssertEqual(scheduler.nextNudge, nextNightNudge)
+        XCTAssertEqual(draws, drawsAfterMute)
+    }
+
+    @MainActor
+    func testMuteWithNoConfiguredWindowPostsScheduleDidChange() throws {
+        let (settings, _) = try activatedSettings("MuteNoWindowPost")
+        for day in 1...7 {
+            settings.updateActiveWeekday(day, isActive: false)
+        }
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: .autoupdatingCurrent))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        var posts = 0
+        let subscription = NotificationCenter.default
+            .publisher(for: .beddyScheduleDidChange, object: scheduler)
+            .sink { _ in posts += 1 }
+        defer { subscription.cancel() }
+
+        scheduler.muteForCurrentWindow()
+        XCTAssertEqual(scheduler.lastEvent, "No bedtime window is available to mute.")
+        XCTAssertEqual(posts, 1)
+    }
 }

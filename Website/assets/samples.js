@@ -16,7 +16,7 @@ for (const sample of samples) {
   const title = persona.charAt(0).toUpperCase() + persona.slice(1);
   const updateToggle = () => {
     if (!toggle) return;
-    const playing = !sample.paused;
+    const playing = !sample.paused && !sample.ended;
     toggle.textContent = playing ? "❚❚ Pause sample" : "▶ Hear sample";
     toggle.setAttribute("aria-label", `${playing ? "Pause" : "Hear"} sample, ${title}`);
     toggle.setAttribute("aria-pressed", String(playing));
@@ -33,14 +33,22 @@ for (const sample of samples) {
   }
   sample.volume = 0.85;
   sample.addEventListener("play", () => {
-    for (const other of samples) if (other !== sample) other.pause();
+    for (const other of samples) {
+      if (other !== sample) {
+        other.pause();
+        if (typeof other.currentTime === "number") other.currentTime = 0;
+      }
+    }
     if (retry) retry.hidden = true;
     say("");
   });
   sample.addEventListener("pause", () => {
     if (!sample.error && !sample.ended) say("");
   });
-  sample.addEventListener("ended", () => say(""));
+  sample.addEventListener("ended", () => {
+    if (typeof sample.currentTime === "number") sample.currentTime = 0;
+    say("");
+  });
   sample.addEventListener("error", failed);
   if (retry) retry.addEventListener("click", () => {
     say("Loading sample…");

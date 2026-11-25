@@ -162,7 +162,7 @@ The live destination validator is read only. Current mode proves the existing pu
 | `AudioPlayer.swift` | Voice catalog and retained audio playback |
 | `LoginItems.swift` | Modern login item state and registration |
 | `AboutViewController.swift` | About panel metadata |
-| `Website` | BeddyButler.com product, support, and privacy pages |
+| `Website` | BeddyButler.com product, accessibility, support, privacy, and press pages |
 | `AppStore` | Submission copy, review notes, privacy answers, and screenshots |
 | `DESIGN_SYSTEM.md` | Figma source, shared visual tokens, 4K masters, and native capture workflow |
 
@@ -172,7 +172,7 @@ The test target covers scheduling before, during, and after a window; active-nig
 
 Two local runtime probes supplement XCTest. `Tools/runtime_smoke_test.swift` confirms the real preferences window launches at a usable size. `Tools/accessibility_smoke_test.swift` verifies the window and critical controls appear in the macOS accessibility hierarchy. Both use isolated preferences suites and leave the user's Beddy Butler settings untouched.
 
-`Tools/capture_acceptance_states.swift` adds an exact-executable six-state image matrix with isolated defaults, SHA-256 manifest binding, empty-frame rejection, and state-diversity checks. Its Tonight renders are suitable for visual inspection. Its complete-form Preferences renders expose every production section, but AppKit-backed controls can show placeholders without a live window, so they supplement rather than replace exact-candidate native-window acceptance.
+`Tools/capture_acceptance_states.swift` adds an exact-executable ten-state image matrix with isolated defaults, SHA-256 manifest binding, empty-frame rejection, and state-diversity checks. Its Tonight renders are suitable for visual inspection. Its complete-form Preferences renders expose every production section, but AppKit-backed controls can show placeholders without a live window, so they supplement rather than replace exact-candidate native-window acceptance.
 
 The source recordings are stored unchanged in `Audio Sources/Originals`. `Tools/prepare_audio.py` reproducibly creates the release assets, while its `--check` mode verifies inventory, hashes, decoding, and clip duration without modifying files. `Audio Sources/PROCESSING_REPORT.json` records every source hash, splice, gain adjustment, output duration, and measured level.
 

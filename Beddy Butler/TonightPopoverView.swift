@@ -60,6 +60,7 @@ struct TonightPopoverView: View {
                     }
                     .buttonStyle(BeddyPrimaryButtonStyle(glow: BeddyPalette.blue))
                     .accessibilityIdentifier("popover.acknowledge")
+                    .help("Clear the waiting visual bedtime badge.")
                 }
 
                 if !scheduler.hasFinishedTonight { actionGrid }
@@ -215,6 +216,7 @@ struct TonightPopoverView: View {
                 .buttonStyle(BeddySecondaryButtonStyle())
                 .accessibilityLabel(previewButtonAccessibilityLabel)
                 .accessibilityIdentifier("popover.preview")
+                .help(previewButtonHelp)
 
                 Button {
                     snooze()
@@ -253,6 +255,11 @@ struct TonightPopoverView: View {
                 .foregroundStyle(BeddyPalette.muted)
                 .accessibilityIdentifier("popover.pause")
                 .disabled(!settings.hasActivatedSchedule)
+                .help(
+                    settings.isMuted()
+                        ? "Resume bedtime reminders for tonight."
+                        : "Pause reminders for the current or next bedtime window."
+                )
             }
 
             if scheduler.isSnoozed {
@@ -265,6 +272,7 @@ struct TonightPopoverView: View {
                 .buttonStyle(BeddySubtleButtonStyle())
                 .foregroundStyle(BeddyPalette.muted)
                 .accessibilityIdentifier("popover.pauseTonight")
+                .help("Pause reminders for the current or next bedtime window.")
             }
         }
     }
@@ -424,6 +432,14 @@ struct TonightPopoverView: View {
 
     private var previewButtonAccessibilityLabel: String {
         settings.nudgeDelivery == .both ? "Preview sound and badge" : previewButtonLabel
+    }
+
+    private var previewButtonHelp: String {
+        switch settings.nudgeDelivery {
+        case .sound: "Play a sample of the selected Butler voice."
+        case .visual: "Show a preview of the persistent menu bar badge."
+        case .both: "Play a voice sample and show a menu bar badge preview."
+        }
     }
 
     private var previewButtonSymbol: String {
