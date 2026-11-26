@@ -67,6 +67,7 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             CLANG_STAT_CACHE_ENABLE=NO \
             CODE_SIGNING_ALLOWED=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
             2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/xctest.txt"
       - name: Release build with warnings as errors
         run: |

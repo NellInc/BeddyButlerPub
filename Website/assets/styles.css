@@ -70,7 +70,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   transform: translateY(-150%);
   transition: transform .18s ease;
 }
-.skip-link:focus { transform: translateY(0); }
+.skip-link:focus, .skip-link:focus-visible { transform: translateY(0); }
 
 .night-sky { position: absolute; inset: 0 0 auto; height: 950px; pointer-events: none; overflow: hidden; }
 .star { position: absolute; width: 3px; height: 3px; background: #c5e8ff; border-radius: 50%; box-shadow: 0 0 12px #75bfff; animation: twinkle 5s ease-in-out infinite; }

@@ -158,6 +158,8 @@ xcodebuild archive \
   -allowProvisioningUpdates \
   DEVELOPMENT_TEAM="$team_id" \
   CODE_SIGN_STYLE=Automatic \
+  ARCHS="arm64 x86_64" \
+  ONLY_ACTIVE_ARCH=NO \
   SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
   MARKETING_VERSION="$version" \
   CURRENT_PROJECT_VERSION="$build"

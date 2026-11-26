@@ -64,6 +64,7 @@ xcodebuild test \
   -parallel-testing-enabled NO \
   COMPILER_INDEX_STORE_ENABLE=NO \
   CLANG_STAT_CACHE_ENABLE=NO \
-  CODE_SIGNING_ALLOWED=NO
+  CODE_SIGNING_ALLOWED=NO \
+  SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
 
 print "Release source validation passed."

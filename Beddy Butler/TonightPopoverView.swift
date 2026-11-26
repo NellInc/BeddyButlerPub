@@ -465,11 +465,32 @@ struct TonightPopoverView: View {
     private var weeklySchedule: WeeklyBedtimeSchedule { settings.weeklySchedule }
 
     private var schedulePresentation: (name: String, window: BedtimeWindow)? {
-        let calendar = Calendar.autoupdatingCurrent
-        let schedule = weeklySchedule
+        Self.schedulePresentation(
+            at: Date(),
+            hasFinishedTonight: scheduler.hasFinishedTonight,
+            finishedWindowEnd: settings.finishedWindowEnd,
+            schedule: weeklySchedule,
+            primaryName: settings.primaryScheduleName,
+            alternateName: settings.alternateScheduleName
+        )
+    }
+
+    static func schedulePresentation(
+        at referenceDate: Date,
+        hasFinishedTonight: Bool,
+        finishedWindowEnd: Date?,
+        schedule: WeeklyBedtimeSchedule,
+        primaryName: String,
+        alternateName: String,
+        calendar: Calendar = .autoupdatingCurrent
+    ) -> (name: String, window: BedtimeWindow)? {
+        let queryDate =
+            hasFinishedTonight
+            ? max(finishedWindowEnd ?? referenceDate, referenceDate)
+            : referenceDate
         guard
             let window = ScheduleCalculator(calendar: calendar).window(
-                containingOrAfter: Date(),
+                containingOrAfter: queryDate,
                 schedule: schedule
             ),
             let selection = schedule.selection(for: window.start, calendar: calendar)
@@ -479,8 +500,8 @@ struct TonightPopoverView: View {
 
         let name =
             switch selection {
-            case .primary: settings.primaryScheduleName
-            case .alternate: settings.alternateScheduleName
+            case .primary: primaryName
+            case .alternate: alternateName
             case .oneNightOverride: "Tonight’s adjustment"
             }
         return (name, window)

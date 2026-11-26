@@ -255,6 +255,60 @@ final class BeddyButlerWallClockTests: XCTestCase {
     }
 
     @MainActor
+    func testTonightPopoverSchedulePresentationAdvancesAfterFinishingTonight() throws {
+        var london = Calendar(identifier: .gregorian)
+        london.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/London"))
+        let fridayEvening = try XCTUnwrap(
+            london.date(from: DateComponents(year: 2026, month: 7, day: 24, hour: 22))
+        )
+        let fridayBedtime = try XCTUnwrap(
+            london.date(from: DateComponents(year: 2026, month: 7, day: 24, hour: 23))
+        )
+        let schedule = WeeklyBedtimeSchedule(
+            startSeconds: 21 * 3_600,
+            bedSeconds: 23 * 3_600,
+            activeWeekdays: Set(1...7),
+            alternateScheduleEnabled: true,
+            alternateWeekdays: [7],
+            alternateStartSeconds: 22 * 3_600 + 30 * 60,
+            alternateBedSeconds: 30 * 60,
+            oneNightOverride: OneNightScheduleOverride(
+                anchorDate: fridayEvening,
+                startSeconds: 21 * 3_600 + 30 * 60,
+                bedSeconds: 23 * 3_600
+            )
+        )
+
+        let activePresentation = try XCTUnwrap(
+            TonightPopoverView.schedulePresentation(
+                at: fridayEvening,
+                hasFinishedTonight: false,
+                finishedWindowEnd: nil,
+                schedule: schedule,
+                primaryName: "Regular",
+                alternateName: "Weekend",
+                calendar: london
+            )
+        )
+        XCTAssertEqual(activePresentation.name, "Tonight’s adjustment")
+        XCTAssertEqual(activePresentation.window.end, fridayBedtime)
+
+        let finishedPresentation = try XCTUnwrap(
+            TonightPopoverView.schedulePresentation(
+                at: fridayEvening,
+                hasFinishedTonight: true,
+                finishedWindowEnd: fridayBedtime,
+                schedule: schedule,
+                primaryName: "Regular",
+                alternateName: "Weekend",
+                calendar: london
+            )
+        )
+        XCTAssertEqual(finishedPresentation.name, "Weekend")
+        XCTAssertGreaterThan(finishedPresentation.window.start, fridayBedtime)
+    }
+
+    @MainActor
     func testAlternateScheduleCopyUsesTheChosenNameAndWeekday() {
         XCTAssertEqual(
             PreferencesView.alternateScheduleNightsTitle("Observance"),

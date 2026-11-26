@@ -922,6 +922,32 @@ final class BeddyButlerTimerTests: XCTestCase {
     }
 
     @MainActor
+    func testStaleUndoFinishTonightAfterBedtimeClearsExpiredFinishAndPublishes() throws {
+        let (settings, _) = try activatedSettings("StaleUndoFinish")
+        let calendar = Calendar.autoupdatingCurrent
+        let clock = TestClock(date(2026, 7, 21, 22, calendar: calendar))
+        let scheduler = makeScheduler(settings, clock: clock)
+        defer { scheduler.invalidateTimers() }
+
+        scheduler.finishTonight()
+        XCTAssertTrue(scheduler.hasFinishedTonight)
+
+        var posts = 0
+        let subscription = NotificationCenter.default
+            .publisher(for: .beddyScheduleDidChange, object: scheduler)
+            .sink { _ in posts += 1 }
+        defer { subscription.cancel() }
+
+        clock.now = date(2026, 7, 21, 23, 5, calendar: calendar)
+        scheduler.undoFinishTonight()
+
+        XCTAssertNil(settings.finishedWindowEnd)
+        XCTAssertNil(settings.mutedUntil)
+        XCTAssertFalse(scheduler.hasFinishedTonight)
+        XCTAssertEqual(posts, 1)
+    }
+
+    @MainActor
     func testUnrelatedChangesAndActivationKeepThePendingNudge() throws {
         let (settings, _) = try activatedSettings("Preserve")
         settings.updateFrequencyMinutes(10)

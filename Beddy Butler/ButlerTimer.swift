@@ -611,6 +611,8 @@ final class ButlerTimer: NSObject, ObservableObject {
     func undoFinishTonight() {
         if settings.undoFinishedWindow(at: now()) {
             lastEvent = "Nudges resumed."
+        } else {
+            refreshTimeDependentState()
         }
     }
 

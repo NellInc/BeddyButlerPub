@@ -355,6 +355,7 @@ struct PreferencesView: View {
             .tint(BeddyPalette.blue)
             .preferredColorScheme(.dark)
             .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+                NSTimeZone.resetSystemTimeZone()
                 timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
             }
             .onChange(of: settings.tonightOverrideDate) { updatedDate in
@@ -658,6 +659,7 @@ struct PreferencesView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("Use different times tonight", isOn: tonightOverrideBinding)
                             .accessibilityIdentifier("tonight.override.enabled")
+                            .accessibilityHint("Temporarily overrides your regular schedule for tonight only")
 
                         if tonightOverrideBinding.wrappedValue {
                             HStack(alignment: .bottom, spacing: 14) {

@@ -106,6 +106,14 @@ def main() -> int:
     pages = PAGES_WORKFLOW.read_text(encoding="utf-8")
     for reference in unpinned_actions(pages):
         errors.append(f"Pages action {reference} is not pinned to a full commit SHA")
+    for line_number, body in multiline_run_blocks(pages):
+        first_command = next((line.strip() for line in body if line.strip()), "")
+        if first_command != "set -euo pipefail":
+            errors.append(
+                f"Pages run block at line {line_number} must begin with 'set -euo pipefail'"
+            )
+    if "fetch-depth: 0" not in pages:
+        errors.append("Pages workflow is missing 'fetch-depth: 0' for sitemap history validation")
 
     mutation = workflow.replace("set -euo pipefail", "set -eu", 1)
     if mutation == workflow or not validate(mutation, version=version, build=build):
