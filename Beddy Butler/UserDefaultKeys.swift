@@ -821,9 +821,9 @@ final class AppSettings: ObservableObject {
         return mutedWholeWindow || finishedWindowEnd == mutedUntil
     }
 
-    /// Moves a whole-window mute to a later bedtime. Silent, for use mid-recalculation.
+    /// Moves a whole-window mute to the current window's updated bedtime. Silent, for use mid-recalculation.
     func extendWholeWindowMute(until date: Date) {
-        guard mutesWholeWindow, let mutedUntil, date > mutedUntil else { return }
+        guard mutesWholeWindow, let mutedUntil, date != mutedUntil else { return }
         if finishedWindowEnd == mutedUntil {
             finishedWindowEnd = date
         }

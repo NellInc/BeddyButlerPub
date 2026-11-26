@@ -1295,6 +1295,35 @@ final class BeddyButlerTimerTests: XCTestCase {
     }
 
     @MainActor
+    func testFinishAndPauseFollowAnEarlierBedtime() throws {
+        let calendar = Calendar.autoupdatingCurrent
+        for finishes in [true, false] {
+            let (settings, defaults) = try activatedSettings("ShortenedWindow")
+            let clock = TestClock(date(2026, 7, 21, 21, 30, calendar: calendar))
+            let scheduler = makeScheduler(settings, clock: clock)
+            defer { scheduler.invalidateTimers() }
+
+            if finishes {
+                scheduler.finishTonight()
+            } else {
+                scheduler.muteForCurrentWindow()
+            }
+            settings.updateBedSeconds(22 * 3_600 + 30 * 60)
+
+            let earlierBedtime = date(2026, 7, 21, 22, 30, calendar: calendar)
+            XCTAssertEqual(settings.mutedUntil, earlierBedtime, "finish: \(finishes)")
+            XCTAssertEqual(scheduler.hasFinishedTonight, finishes)
+            XCTAssertFalse(scheduler.isSnoozed, "finish: \(finishes)")
+            XCTAssertEqual(
+                calendar.dateComponents([.day, .hour], from: try XCTUnwrap(scheduler.nextNudge)),
+                DateComponents(day: 22, hour: 21),
+                "finish: \(finishes)"
+            )
+            XCTAssertEqual(AppSettings(defaults: defaults).mutedUntil, earlierBedtime)
+        }
+    }
+
+    @MainActor
     func testShortSnoozeDoesNotFollowALaterBedtime() throws {
         let (settings, _) = try activatedSettings("SnoozeWidened")
         let clock = TestClock(date(2026, 7, 21, 22, calendar: .autoupdatingCurrent))

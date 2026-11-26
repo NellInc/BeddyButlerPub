@@ -17,9 +17,10 @@ flowchart TD
     G --> I["AudioPlayer"]
     G --> F
     E --> J["ButlerRiggedView"]
-    D --> J
     E --> L["BeddyDesign"]
     D --> L
+    B --> M["About window"]
+    M --> L
     H --> K["UserDefaults and migration"]
 ```
 

@@ -805,7 +805,7 @@ final class ButlerTimer: NSObject, ObservableObject {
         return ScheduledNudge(fireDate: pendingDate, window: pendingWindow)
     }
 
-    /// Keeps a whole-window pause or finish lasting until bedtime after bedtime moves later.
+    /// Keeps a whole-window pause or finish aligned with bedtime after bedtime moves later or earlier.
     private func followWidenedWindow(
         at currentDate: Date,
         calculator: ScheduleCalculator,
@@ -816,7 +816,7 @@ final class ButlerTimer: NSObject, ObservableObject {
             mutedUntil > currentDate,
             let window = calculator.window(containingOrAfter: currentDate, schedule: schedule),
             window.start < mutedUntil,
-            mutedUntil < window.end
+            window.end != mutedUntil
         else {
             return
         }

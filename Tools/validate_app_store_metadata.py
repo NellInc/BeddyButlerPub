@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import struct
 import sys
 
@@ -11,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 APPSTORE = ROOT / "AppStore"
 LOCALE = APPSTORE / "en-GB"
 SCREENSHOTS = APPSTORE / "Screenshots"
+PROJECT = ROOT / "Beddy Butler.xcodeproj" / "project.pbxproj"
 
 TEXT_REQUIREMENTS = {
     "name.txt": (2, 30),
@@ -75,8 +77,28 @@ def main() -> int:
     )
     if "\n" in keywords:
         errors.append("keywords.txt must be one comma separated line")
-    if any(not keyword.strip() for keyword in keywords.split(",")):
+    keyword_items = [keyword.strip() for keyword in keywords.split(",")]
+    if any(not item for item in keyword_items):
         errors.append("keywords.txt contains an empty keyword")
+    normalized_keywords = [item.lower() for item in keyword_items if item]
+    if len(normalized_keywords) != len(set(normalized_keywords)):
+        errors.append("keywords.txt contains duplicate keywords")
+
+    if PROJECT.is_file():
+        versions = set(
+            re.findall(r"\bMARKETING_VERSION = ([^;]+);", PROJECT.read_text(encoding="utf-8"))
+        )
+        whats_new = (
+            read_text(LOCALE / "whats-new.txt")
+            if (LOCALE / "whats-new.txt").is_file()
+            else ""
+        )
+        if len(versions) == 1:
+            version = next(iter(versions)).strip()
+            if version not in whats_new:
+                errors.append(
+                    f"whats-new.txt should mention current MARKETING_VERSION {version}"
+                )
 
     description = (
         read_text(LOCALE / "description.txt")
