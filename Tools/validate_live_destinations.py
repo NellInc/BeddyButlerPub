@@ -25,7 +25,7 @@ APEX_URL = "https://beddybutler.com/"
 APP_STORE_LOOKUP = "https://itunes.apple.com/lookup?id=1197329062&country=gb"
 GITHUB_REPOSITORY_API = "https://api.github.com/repos/NellInc/beddybutlerpub"
 EXPECTED_BUNDLE_ID = "com.nellwatson.Beddy-Butler"
-LIVE_APP_VERSION = "2.0.2"
+LIVE_APP_VERSION = "2.0.3"
 EXPECTED_MINIMUM_OS = "13.0"
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 
