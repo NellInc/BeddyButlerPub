@@ -2,7 +2,7 @@
 
 Beddy Butler is an original macOS menu bar companion, first released in 2016 and now rebuilt in Swift 6. It nudges you toward bed with increasingly persuasive voice reminders, visual reminders, or both. It is completely free.
 
-**Current release candidate:** Beddy Butler 2.0.3 (build 615)
+**Current release candidate:** Beddy Butler 2.0.4 (build 616)
 
 **Design and engineering by Nell Watson and David Garces.**
 
@@ -83,8 +83,8 @@ Validate a finished application bundle before packaging or upload:
 ```sh
 python3 Tools/validate_app_bundle.py \
   "/path/to/Beddy Butler.app" \
-  --version 2.0.3 \
-  --build 615 \
+  --version 2.0.4 \
+  --build 616 \
   --require-universal
 ```
 
@@ -98,7 +98,7 @@ archive before Xcode applies managed distribution signing during export or uploa
 Create a signed local beta with the installed Developer ID identity:
 
 ```sh
-Tools/release.sh 2.0.3 615 --local
+Tools/release.sh 2.0.4 616 --local
 ```
 
 There is no default distribution mode. `--local` must be written explicitly. For a notarized release, first store a `beddy-butler-notary` notarytool Keychain profile, obtain Nell's approval for the exact clean commit, version, and build, set `BEDDY_NOTARIZATION_APPROVAL` to `NOTARIZE:<40-character-commit>:<version>:<build>`, then use `--notarized`. The release script validates the built bundle, notarizes and staples the app, builds and notarizes a drag-to-Applications disk image, creates a ZIP, and writes SHA-256 checksums. The existing rights record is retained in the release checklist; publication of each exact candidate still requires explicit approval.
@@ -106,8 +106,8 @@ There is no default distribution mode. `--local` must be written explicitly. For
 Prepare a Mac App Store build:
 
 ```sh
-Tools/app_store_release.sh --preflight 2.0.3 615
-Tools/app_store_release.sh --upload 2.0.3 615
+Tools/app_store_release.sh --preflight 2.0.4 616
+Tools/app_store_release.sh --upload 2.0.4 616
 ```
 
 Release scripts require a clean Git working tree and rerun formatting, metadata,

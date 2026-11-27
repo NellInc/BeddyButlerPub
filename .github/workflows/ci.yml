@@ -88,8 +88,8 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/release-build.txt"
           python3 Tools/validate_app_bundle.py \
             "$RUNNER_TEMP/BeddyButlerRelease/Build/Products/Release/Beddy Butler.app" \
-            --version 2.0.3 \
-            --build 615 \
+            --version 2.0.4 \
+            --build 616 \
             --require-universal \
             2>&1 | tee "$RUNNER_TEMP/BeddyButlerEvidence/bundle-validation.txt"
       - name: Upload validation evidence

@@ -1,1 +1,1 @@
-Version 2.0.3 adds animated Butlers, flexible snooze choices and an easy way to finish for tonight. Reminders now wait until you press Start Beddy Butler. Includes clearer status displays and menu fixes.
+Version 2.0.4 refines bedtime scheduling across daylight saving and time-zone changes, keeps Tonight status and whole-window pauses accurate when schedules change, and improves VoiceOver announcements, keyboard shortcuts, and visual clarity.
